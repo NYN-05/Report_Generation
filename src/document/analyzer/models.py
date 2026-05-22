@@ -301,13 +301,6 @@ class EquationInfo:
             "plain_text_approx": self.plain_text_approx[:100],
         }
 
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "type": self.reference_type,
-            "reference_text": self.reference_text,
-            "paragraph_index": self.paragraph_index,
-        }
-
 
 @dataclass
 class DocKnowledgeGraph:

@@ -875,8 +875,95 @@ class TestCrossReferenceDetector:
         assert d["paragraph_index"] == 5
 
 
+# ═══════════════════════════════════════════════════════════════
+#  WatermarkDetector Tests
+# ═══════════════════════════════════════════════════════════════
+
+class TestWatermarkDetector:
+    def test_no_watermark(self, academic_docx):
+        from src.document.analyzer.watermarks import WatermarkDetector
+        doc = Document(academic_docx)
+        det = WatermarkDetector(doc)
+        wms = det.detect()
+        assert len(wms) == 0
+
+    def test_text_watermark_detected(self):
+        doc = Document()
+        doc.add_paragraph("Body text")
+        section = doc.sections[0]
+        header = section.header
+        hp = header.paragraphs[0]
+        hp.text = ""
+        wml = (
+            '<w:p xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+            '  <w:r>'
+            '    <w:watermark w:type="text"/>'
+            '    <w:t>DRAFT</w:t>'
+            '  </w:r>'
+            '</w:p>'
+        )
+        from lxml import etree
+        hp._element.append(etree.fromstring(wml))
+
+        from src.document.analyzer.watermarks import WatermarkDetector
+        det = WatermarkDetector(doc)
+        wms = det.detect()
+        assert len(wms) >= 1
+        assert wms[0].type == "text"
+
+    def test_watermark_model(self):
+        from src.document.analyzer.models import WatermarkInfo
+        wm = WatermarkInfo(type="picture", text="CONFIDENTIAL", section_index=1)
+        d = wm.to_dict()
+        assert d["type"] == "picture"
+        assert d["text"] == "CONFIDENTIAL"
+        assert d["section_index"] == 1
+
+
+# ═══════════════════════════════════════════════════════════════
+#  EquationDetector Tests
+# ═══════════════════════════════════════════════════════════════
+
+class TestEquationDetector:
+    def test_no_equations(self, academic_docx):
+        from src.document.analyzer.equations import EquationDetector
+        doc = Document(academic_docx)
+        det = EquationDetector(doc)
+        eqs = det.detect()
+        assert len(eqs) == 0
+
+    def test_equation_detected_in_paragraph(self):
+        doc = Document()
+        p = doc.add_paragraph()
+        omml = (
+            '<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">'
+            '  <m:t>E=mc^2</m:t>'
+            '</m:oMath>'
+        )
+        from lxml import etree
+        p._element.append(etree.fromstring(omml))
+
+        from src.document.analyzer.equations import EquationDetector
+        det = EquationDetector(doc)
+        eqs = det.detect()
+        assert len(eqs) >= 1
+        assert eqs[0].math_type == "omml"
+
+    def test_equation_model(self):
+        from src.document.analyzer.models import EquationInfo
+        eq = EquationInfo(index=0, paragraph_index=3, math_type="omml", plain_text_approx="F=ma")
+        d = eq.to_dict()
+        assert d["index"] == 0
+        assert d["paragraph_index"] == 3
+        assert d["plain_text_approx"] == "F=ma"
+
+
+# ═══════════════════════════════════════════════════════════════
+#  KnowledgeGraphNewFields Tests
+# ═══════════════════════════════════════════════════════════════
+
 class TestKnowledgeGraphNewFields:
-    def test_graph_has_footnote_field(self, academic_docx):
+    def test_graph_has_all_new_fields(self, academic_docx):
         from src.document.analyzer import KnowledgeGraphBuilder
         doc = Document(academic_docx)
         builder = KnowledgeGraphBuilder(doc)
@@ -884,6 +971,8 @@ class TestKnowledgeGraphNewFields:
         assert hasattr(graph, "footnotes")
         assert hasattr(graph, "headers_footers")
         assert hasattr(graph, "cross_references")
+        assert hasattr(graph, "watermarks")
+        assert hasattr(graph, "equations")
 
     def test_graph_to_dict_includes_new_counts(self, academic_docx):
         from src.document.analyzer import KnowledgeGraphBuilder
@@ -894,6 +983,8 @@ class TestKnowledgeGraphNewFields:
         assert "footnote_count" in d
         assert "header_footer_count" in d
         assert "cross_reference_count" in d
+        assert "watermark_count" in d
+        assert "equation_count" in d
 
     def test_statistics_includes_new_metrics(self, academic_docx):
         from src.document.analyzer import KnowledgeGraphBuilder
@@ -904,3 +995,5 @@ class TestKnowledgeGraphNewFields:
         assert "footnote_count" in stats
         assert "header_footer_count" in stats
         assert "cross_reference_count" in stats
+        assert "watermark_count" in stats
+        assert "equation_count" in stats
