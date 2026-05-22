@@ -419,24 +419,25 @@ class TestRulesEngine:
 # Integration: RulesEngine + AIReportPlanner
 # =============================================================================
 
-class TestRulesIntegrationWithPlanner:
-    @pytest.fixture
-    def eng_blueprint(self):
-        return Blueprint(
-            id="engineering_project",
-            name="Engineering Project Report",
-            description="Test blueprint",
-            sections=[
-                BlueprintSection(id="cover_page", heading="Cover Page", mandatory=True),
-                BlueprintSection(id="table_of_contents", heading="Table of Contents", mandatory=True),
-                BlueprintSection(id="abstract", heading="Abstract", mandatory=True),
-                BlueprintSection(id="chapters", heading="Chapters", level=1, mandatory=True,
-                                 subsections=[]),
-                BlueprintSection(id="references", heading="References", mandatory=True),
-            ],
-            default_chapter_count=4,
-        )
+@pytest.fixture
+def eng_blueprint():
+    return Blueprint(
+        id="engineering_project",
+        name="Engineering Project Report",
+        description="Test blueprint",
+        sections=[
+            BlueprintSection(id="cover_page", heading="Cover Page", mandatory=True),
+            BlueprintSection(id="table_of_contents", heading="Table of Contents", mandatory=True),
+            BlueprintSection(id="abstract", heading="Abstract", mandatory=True),
+            BlueprintSection(id="chapters", heading="Chapters", level=1, mandatory=True,
+                             subsections=[]),
+            BlueprintSection(id="references", heading="References", mandatory=True),
+        ],
+        default_chapter_count=4,
+    )
 
+
+class TestRulesIntegrationWithPlanner:
     def test_planner_with_rules_generates_rich_chapters(self, eng_blueprint):
         engine = RulesEngine()
         planner = AIReportPlanner(rules_engine=engine)
@@ -541,3 +542,172 @@ class TestRulesEndToEnd:
             assert words >= 450, f"Only {words} words with MD rules — expected >= 450"
         finally:
             os.unlink(path)
+
+
+# =============================================================================
+# Tests for LLM planning path (use_llm=True)
+# =============================================================================
+
+class FakeLLMResponse:
+    def __init__(self, content: str):
+        self.content = content
+
+
+class FakeProvider:
+    def __init__(self, available=True, response_text="", fail=False):
+        self._available = available
+        self._response_text = response_text
+        self._fail = fail
+        self.last_messages = None
+        self.last_options = None
+
+    def is_available(self):
+        return self._available
+
+    def chat(self, messages, options=None):
+        self.last_messages = messages
+        self.last_options = options
+        if self._fail:
+            raise RuntimeError("Provider failure")
+        return FakeLLMResponse(self._response_text)
+
+    def generate(self, prompt, options=None):
+        return FakeLLMResponse("")
+
+
+SAMPLE_LLM_STRUCTURE = json.dumps({
+    "sections": [
+        {
+            "blueprint_section_id": "chapters",
+            "heading": "1. Introduction",
+            "allocated_pages": 4,
+            "level": 1,
+            "subsections": [
+                {"heading": "1.1 Background", "level": 2},
+                {"heading": "1.2 Problem Statement", "level": 2},
+            ],
+            "requires_figure": False,
+            "requires_table": False,
+        },
+        {
+            "blueprint_section_id": "chapters",
+            "heading": "2. Literature Review",
+            "allocated_pages": 5,
+            "level": 1,
+            "subsections": [
+                {"heading": "2.1 Theoretical Framework", "level": 2},
+                {"heading": "2.2 Related Work", "level": 2},
+            ],
+            "requires_figure": True,
+            "figure_description": "Research methodology flowchart",
+            "requires_table": True,
+            "table_headers": ["Study", "Method", "Result"],
+        },
+    ]
+})
+
+
+TEST_BP = lambda: Blueprint(
+    id="engineering_project", name="Test BP", description="Test",
+    sections=[BlueprintSection(id="chapters", heading="Chapters", level=1)],
+)
+
+
+class TestLlmPlanningPath:
+    def test_llm_unavailable_falls_back(self):
+        provider = FakeProvider(available=False)
+        planner = AIReportPlanner(provider=provider)
+        plan = planner._plan_with_llm(
+            topic="Test", blueprint=TEST_BP(),
+            title="Test", author="", date="",
+        )
+        assert plan is not None
+        assert plan.blueprint_id == "engineering_project"
+
+    def test_llm_failure_falls_back(self):
+        provider = FakeProvider(available=True, fail=True)
+        planner = AIReportPlanner(provider=provider)
+        plan = planner._plan_with_llm(
+            topic="Test", blueprint=TEST_BP(),
+            title="Test", author="", date="",
+        )
+        assert plan is not None
+        assert plan.blueprint_id == "engineering_project"
+
+    def test_llm_empty_response_falls_back(self):
+        provider = FakeProvider(available=True, response_text="{}")
+        planner = AIReportPlanner(provider=provider)
+        plan = planner._plan_with_llm(
+            topic="Test", blueprint=TEST_BP(),
+            title="Test", author="", date="",
+        )
+        assert plan is not None
+        assert plan.blueprint_id == "engineering_project"
+
+    def test_llm_parse_bare_json(self):
+        planner = AIReportPlanner()
+        result = planner._extract_json('{"sections": [{"heading": "Test"}]}')
+        assert result is not None
+        assert result["sections"][0]["heading"] == "Test"
+
+    def test_llm_parse_markdown_fenced(self):
+        planner = AIReportPlanner()
+        result = planner._extract_json('```json\n{"sections": [{"heading": "Test"}]}\n```')
+        assert result is not None
+        assert result["sections"][0]["heading"] == "Test"
+
+    def test_llm_parse_single_quotes(self):
+        planner = AIReportPlanner()
+        result = planner._extract_json("{'sections': [{'heading': 'Test'}]}")
+        assert result is not None
+        assert result["sections"][0]["heading"] == "Test"
+
+    def test_llm_parse_trailing_commas(self):
+        planner = AIReportPlanner()
+        result = planner._extract_json('{"sections": [{"heading": "Test",}],}')
+        assert result is not None
+        assert result["sections"][0]["heading"] == "Test"
+
+    def test_llm_parse_js_comments(self):
+        planner = AIReportPlanner()
+        result = planner._extract_json(
+            '{"sections": [{"heading": "Test"}]} // end comment'
+        )
+        assert result is not None
+        assert result["sections"][0]["heading"] == "Test"
+
+    def test_llm_plan_with_valid_structure(self, eng_blueprint):
+        provider = FakeProvider(available=True, response_text=SAMPLE_LLM_STRUCTURE)
+        planner = AIReportPlanner(provider=provider)
+        plan = planner._plan_with_llm(
+            topic="Quantum Computing",
+            blueprint=eng_blueprint,
+            title="Quantum Computing Survey",
+            author="Dr. Smith",
+            date="2026",
+        )
+        assert plan is not None
+        assert len(plan.sections) == 2
+        intro = plan.sections[0]
+        assert "Introduction" in intro.heading
+        assert len(intro.content.split()) >= 300
+        assert len(intro.subsections) >= 2
+        assert intro.requires_figure is False
+
+        lit_review = plan.sections[1]
+        assert "Literature" in lit_review.heading
+        assert lit_review.requires_figure is True
+        assert lit_review.figure_description == "Research methodology flowchart"
+        assert lit_review.requires_table is True
+
+    def test_llm_plan_passes_options(self):
+        provider = FakeProvider(available=True, response_text=SAMPLE_LLM_STRUCTURE)
+        planner = AIReportPlanner(provider=provider)
+        planner._plan_with_llm(
+            topic="AI", blueprint=TEST_BP(),
+            title="AI", author="", date="",
+        )
+        assert provider.last_options is not None
+        assert provider.last_options.temperature == 0.3
+        assert provider.last_options.max_tokens == 4096
+        assert provider.last_options.timeout == 60

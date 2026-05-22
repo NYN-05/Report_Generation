@@ -523,6 +523,97 @@ class TestImageDetector:
             assert images[0].width_inches == pytest.approx(2.0, rel=0.1)
             assert images[0].height_inches == pytest.approx(1.0, rel=0.1)
 
+    def test_image_caption_distance_scoring(self):
+        """Two images with captions in correct order — each gets closest caption."""
+        doc = Document()
+        img1 = _make_drawing("rId1")
+        img2 = _make_drawing("rId2")
+        p1 = doc.add_paragraph()
+        p1._element.append(parse_xml(img1))
+        p2 = doc.add_paragraph("Figure 1: Architecture diagram")
+        p3 = doc.add_paragraph()
+        p3._element.append(parse_xml(img2))
+        p4 = doc.add_paragraph("Figure 2: Results chart")
+
+        from src.document.analyzer import ImageDetector
+        det = ImageDetector(doc)
+        images = det.detect()
+        assert len(images) >= 2
+        first = next(i for i in images if i.rId == "rId1")
+        second = next(i for i in images if i.rId == "rId2")
+        assert first.caption == "Figure 1: Architecture diagram", \
+            f"First image got '{first.caption}' instead of Figure 1"
+        assert second.caption == "Figure 2: Results chart", \
+            f"Second image got '{second.caption}' instead of Figure 2"
+
+    def test_image_caption_reversed_order(self):
+        """Captions that appear before their image should still match."""
+        doc = Document()
+        img = _make_drawing("rId1")
+        doc.add_paragraph("Figure 1: Overview")
+        p2 = doc.add_paragraph()
+        p2._element.append(parse_xml(img))
+
+        from src.document.analyzer import ImageDetector
+        det = ImageDetector(doc)
+        images = det.detect()
+        matched = next((i for i in images if i.caption), None)
+        assert matched is not None
+        assert "Figure 1" in matched.caption
+
+    def test_image_caption_too_far(self):
+        """Caption >20 paragraphs away should not match."""
+        doc = Document()
+        img = _make_drawing("rId1")
+        p = doc.add_paragraph()
+        p._element.append(parse_xml(img))
+        for _ in range(25):
+            doc.add_paragraph("Filler text to increase distance...")
+        doc.add_paragraph("Figure 1: Far away caption")
+
+        from src.document.analyzer import ImageDetector
+        det = ImageDetector(doc)
+        images = det.detect()
+        assert all(i.caption is None for i in images)
+
+    def test_image_multiple_captions_no_duplicates(self):
+        """Each caption should be assigned to at most one image."""
+        doc = Document()
+        img1 = _make_drawing("rId1")
+        img2 = _make_drawing("rId2")
+        p1 = doc.add_paragraph()
+        p1._element.append(parse_xml(img1))
+        p2 = doc.add_paragraph("Figure 1: First")
+        p3 = doc.add_paragraph()
+        p3._element.append(parse_xml(img2))
+        p4 = doc.add_paragraph("Figure 2: Second")
+
+        from src.document.analyzer import ImageDetector
+        det = ImageDetector(doc)
+        images = det.detect()
+        captions = [i.caption for i in images if i.caption]
+        assert len(captions) == len(set(captions)), "Duplicate captions assigned"
+
+
+def _make_drawing(rId: str) -> str:
+    return (
+        f'<w:drawing {nsdecls("w", "wp", "a", "r")}>'
+        f'  <wp:inline distT="0" distB="0" distL="0" distR="0">'
+        f'    <wp:extent cx="914400" cy="914400"/>'
+        f'    <wp:docPr id="1" name="Picture 1" descr="Test"/>'
+        f'    <a:graphic>'
+        f'      <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+        f'        <pic:pic {nsdecls("pic")}>'
+        f'          <pic:blipFill>'
+        f'            <a:blip r:embed="{rId}"/>'
+        f'          </pic:blipFill>'
+        f'        </pic:pic>'
+        f'      </a:graphicData>'
+        f'    </a:graphic>'
+        f'  </wp:inline>'
+        f'</w:drawing>'
+    )
+
 
 # ═══════════════════════════════════════════════════════════════
 #  ReferenceDetector Tests

@@ -264,6 +264,48 @@ class CrossReferenceInfo:
             "type": self.reference_type,
             "reference_text": self.reference_text,
             "paragraph_index": self.paragraph_index,
+            "context_text": self.context_text[:200] if self.context_text else "",
+        }
+
+
+@dataclass
+class WatermarkInfo:
+    type: str = "text"
+    text: str = ""
+    is_section_watermark: bool = True
+    section_index: int = 0
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "type": self.type,
+            "text": self.text[:200] if self.text else "",
+            "is_section_watermark": self.is_section_watermark,
+            "section_index": self.section_index,
+        }
+
+
+@dataclass
+class EquationInfo:
+    index: int
+    paragraph_index: int = -1
+    math_type: str = "omml"
+    inline: bool = True
+    plain_text_approx: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "index": self.index,
+            "paragraph_index": self.paragraph_index,
+            "math_type": self.math_type,
+            "inline": self.inline,
+            "plain_text_approx": self.plain_text_approx[:100],
+        }
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "type": self.reference_type,
+            "reference_text": self.reference_text,
+            "paragraph_index": self.paragraph_index,
         }
 
 
@@ -281,6 +323,8 @@ class DocKnowledgeGraph:
     footnotes: List[FootnoteInfo] = field(default_factory=list)
     headers_footers: List[HeaderFooterInfo] = field(default_factory=list)
     cross_references: List[CrossReferenceInfo] = field(default_factory=list)
+    watermarks: List[WatermarkInfo] = field(default_factory=list)
+    equations: List[EquationInfo] = field(default_factory=list)
     statistics: Dict[str, Any] = field(default_factory=dict)
     analysis_id: str = field(default_factory=lambda: str(uuid.uuid4())[:12])
 
@@ -299,5 +343,7 @@ class DocKnowledgeGraph:
             "footnote_count": len(self.footnotes),
             "header_footer_count": len(self.headers_footers),
             "cross_reference_count": len(self.cross_references),
+            "watermark_count": len(self.watermarks),
+            "equation_count": len(self.equations),
             "total_paragraphs": len(self.paragraphs),
         }

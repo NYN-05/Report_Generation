@@ -102,10 +102,15 @@ class OllamaProvider(BaseProvider):
 
             logger.debug(f"Sending chat request to Ollama: {len(messages)} messages")
 
+            kwargs = {}
+            if completion_options.timeout:
+                kwargs["timeout"] = completion_options.timeout
+
             response = self._client.chat(
                 model=self.model,
                 messages=msg_dicts,
-                options=request_options
+                options=request_options,
+                **kwargs
             )
 
             self._circuit_breaker.record_success()

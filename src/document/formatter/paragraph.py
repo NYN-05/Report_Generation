@@ -1,13 +1,16 @@
 """
 Paragraph Formatter Module
 ==========================
-Paragraph formatting utilities.
+Paragraph formatting utilities for both python-docx Paragraph objects
+and OxmlElement XML (for document body editing).
 """
 
 from typing import Optional
 from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.text.paragraph import Paragraph
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 
 from src.core.logger import get_logger
 
@@ -98,3 +101,41 @@ class ParagraphFormatter:
         target_pf.space_after = source_pf.space_after
         target_pf.line_spacing = source_pf.line_spacing
         target_pf.first_line_indent = source_pf.first_line_indent
+
+    @staticmethod
+    def format_paragraph_xml(
+        alignment: str = None,
+        space_before: int = None,
+        space_after: int = None,
+        line_spacing: float = None,
+        first_line_indent: float = None,
+    ) -> Optional[OxmlElement]:
+        """Create a w:pPr OxmlElement with paragraph formatting."""
+        pPr = OxmlElement('w:pPr')
+        has_content = False
+        if alignment:
+            jc = OxmlElement('w:jc')
+            jc.set(qn('w:val'), alignment)
+            pPr.append(jc)
+            has_content = True
+        spacing = OxmlElement('w:spacing')
+        has_spacing = False
+        if space_before is not None:
+            spacing.set(qn('w:before'), str(int(space_before * 20)))
+            has_spacing = True
+        if space_after is not None:
+            spacing.set(qn('w:after'), str(int(space_after * 20)))
+            has_spacing = True
+        if line_spacing is not None:
+            spacing.set(qn('w:line'), str(int(line_spacing * 240)))
+            spacing.set(qn('w:lineRule'), 'auto')
+            has_spacing = True
+        if has_spacing:
+            pPr.append(spacing)
+            has_content = True
+        if first_line_indent is not None:
+            ind = OxmlElement('w:ind')
+            ind.set(qn('w:firstLine'), str(int(first_line_indent * 20)))
+            pPr.append(ind)
+            has_content = True
+        return pPr if has_content else None

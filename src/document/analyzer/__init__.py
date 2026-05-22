@@ -2,6 +2,7 @@ from .models import (
     DocKnowledgeGraph, SectionInfo, HeadingInfo, StyleProfile,
     FontInfo, ParagraphFormatInfo, TableInfo, ImageInfo,
     ReferenceInfo, CitationLink, ParagraphInfo,
+    WatermarkInfo, EquationInfo,
 )
 from .heading import HeadingDetector
 from .classifier import SectionClassifier
@@ -19,4 +20,6 @@ __all__ = [
     "HeadingDetector", "SectionClassifier", "StyleExtractor",
     "TableDetector", "ImageDetector", "ReferenceDetector",
     "KnowledgeGraphBuilder", "DocxAnalyzer",
+    "WatermarkInfo", "EquationInfo",
+    "WatermarkDetector", "EquationDetector",
 ]

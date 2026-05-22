@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from .models import Blueprint, BlueprintSection, ReportPlan, PlanSection
 from src.core.logger import get_logger
-from src.providers import get_default_provider, Message
+from src.providers import get_default_provider, Message, CompletionOptions
 from src.document.rules import RulesEngine, ReportRules
 
 logger = get_logger(__name__)
@@ -61,97 +61,70 @@ class AIReportPlanner:
 
     def _plan_with_llm(self, topic: str, blueprint: Blueprint,
                        title: str, author: str, date: str) -> ReportPlan:
-        sections_json = json.dumps([
-            {"id": s.id, "heading": s.heading, "level": s.level,
-             "mandatory": s.mandatory, "content_hint": s.content_hint,
-             "has_subsections": len(s.subsections) > 0 or s.id == "chapters"}
-            for s in blueprint.sections
-        ], indent=2)
-
-        prompt = f"""You are an academic report planner. Plan the structure of a report.
-
-Blueprint: {blueprint.name}
-Topic: {topic}
-Title: {title or topic}
-
-Blueprint sections:
-{sections_json}
-
-For each section, provide:
-1. The actual heading text to use (for chapters, include numbering like "1. Introduction")
-2. Content (1-2 paragraphs of the actual report text)
-3. For chapters, also provide subsections with headings and content
-4. Estimated pages per section
-5. Number of references needed
-6. Whether the section needs figures or tables
-
-For the "chapters" section, generate appropriate chapters based on the topic.
-For engineering projects, use: Introduction, Literature Review, System Design, Implementation, Results, Conclusion.
-Adjust based on the topic.
-
-Output ONLY valid JSON in this format:
-{{
-  "sections": [
-    {{
-      "blueprint_section_id": "introduction",
-      "heading": "1. Introduction",
-      "level": 1,
-      "content": "Full paragraph content here...",
-      "allocated_pages": 3,
-      "subsections": [
-        {{"blueprint_section_id": "introduction", "heading": "1.1 Background", "level": 2, "content": "Background content..."}}
-      ],
-      "requires_figure": false,
-      "figure_description": "",
-      "requires_table": false,
-      "table_headers": [],
-      "table_rows": []
-    }}
-  ],
-  "total_pages": 30,
-  "total_references": 15,
-  "total_figures": 5,
-  "total_tables": 3,
-  "references": ["[1] Author, Title, Journal, Year", "[2] ..."]
-}}
-Do not include sections with id "cover_page", "table_of_contents", "list_of_figures", "list_of_tables" in the sections array — those are auto-generated.
-Do not include "certificate", "declaration", "acknowledgement", "abstract" unless the blueprint has them.
-Only include sections that are in the blueprint above."""
-
-        messages = [
-            Message(role="system", content="You are an academic report planning assistant. Output only valid JSON."),
-            Message(role="user", content=prompt),
-        ]
-
-        response = self.provider.chat(messages)
-        data = self._parse_json(response.content)
+        llm_structure = self._llm_generate_structure(topic, blueprint, title)
+        if not llm_structure:
+            logger.warning("LLM structure generation failed, using fallback")
+            return self._plan_fallback(topic, blueprint, title, author, date)
 
         sections = []
-        for s_data in data.get("sections", []):
+        for sec in llm_structure:
+            bp_id = sec.get("blueprint_section_id", "chapters")
+            pages = sec.get("allocated_pages", 3)
+
+            content = self._rules_engine.generate_section_content(
+                topic=topic, heading=sec["heading"],
+                blueprint_section_id=bp_id, allocated_pages=pages,
+            )
+
             subsections = []
-            for sub in s_data.get("subsections", []):
-                subsections.append(PlanSection(
-                    blueprint_section_id=sub.get("blueprint_section_id", s_data.get("blueprint_section_id", "")),
-                    heading=sub.get("heading", ""),
-                    level=sub.get("level", 2),
-                    content=sub.get("content", ""),
-                    allocated_pages=sub.get("allocated_pages", 0),
-                    requires_figure=sub.get("requires_figure", False),
-                    requires_table=sub.get("requires_table", False),
-                ))
+            llm_subs = sec.get("subsections", [])
+            if llm_subs:
+                for sub in llm_subs:
+                    sub_content = self._rules_engine.generate_section_content(
+                        topic=topic, heading=sub["heading"],
+                        blueprint_section_id=bp_id,
+                        allocated_pages=max(1, pages // 2),
+                    )
+                    subsections.append(PlanSection(
+                        blueprint_section_id=bp_id,
+                        heading=sub["heading"],
+                        level=sub.get("level", 2),
+                        content=sub_content,
+                        allocated_pages=sub.get("allocated_pages", max(1, pages // 2)),
+                        requires_figure=sub.get("requires_figure", False),
+                        requires_table=sub.get("requires_table", False),
+                    ))
+            elif bp_id == "chapters":
+                subs_data = self._rules_engine.generate_subsections(
+                    topic=topic, section_heading=sec["heading"],
+                    blueprint_section_id="chapters", count=3,
+                )
+                subsections = [
+                    PlanSection(
+                        blueprint_section_id="chapters",
+                        heading=sub_h, level=sub_lvl,
+                        content=sub_c, allocated_pages=2,
+                    ) for sub_h, sub_c, sub_lvl in subs_data
+                ]
+
             sections.append(PlanSection(
-                blueprint_section_id=s_data.get("blueprint_section_id", ""),
-                heading=s_data.get("heading", ""),
-                level=s_data.get("level", 1),
-                content=s_data.get("content", ""),
+                blueprint_section_id=bp_id,
+                heading=sec["heading"],
+                level=sec.get("level", 1),
+                content=content,
                 subsections=subsections,
-                allocated_pages=s_data.get("allocated_pages", 0),
-                requires_figure=s_data.get("requires_figure", False),
-                figure_description=s_data.get("figure_description", ""),
-                requires_table=s_data.get("requires_table", False),
-                table_headers=s_data.get("table_headers", []),
-                table_rows=s_data.get("table_rows", []),
+                allocated_pages=pages,
+                requires_figure=sec.get("requires_figure", False),
+                figure_description=sec.get("figure_description", ""),
+                requires_table=sec.get("requires_table", False),
+                table_headers=sec.get("table_headers", []),
+                table_rows=sec.get("table_rows", []),
             ))
+
+        total_pages = sum(s.allocated_pages for s in sections)
+        refs = [f"[{i+1}] J. Smith, \"Advances in {topic.split()[0] if topic.split() else topic}: A Comprehensive Review,\" "
+                f"International Journal of Engineering, vol. {i+10}, no. {i+2}, pp. {100+i*10}-{109+i*10}, 202{i%5+1}."
+                for i in range(10)]
 
         return ReportPlan(
             blueprint_id=blueprint.id,
@@ -161,12 +134,95 @@ Only include sections that are in the blueprint above."""
             author=author,
             date=date,
             sections=sections,
-            total_pages=data.get("total_pages", 30),
-            total_references=data.get("total_references", 10),
-            total_figures=data.get("total_figures", 0),
-            total_tables=data.get("total_tables", 0),
-            references=data.get("references", []),
+            total_pages=total_pages,
+            total_references=10,
+            total_figures=sum(1 for s in sections if s.requires_figure),
+            total_tables=sum(1 for s in sections if s.requires_table),
+            references=refs,
         )
+
+    def _llm_generate_structure(self, topic: str, blueprint: Blueprint,
+                                 title: str) -> Optional[List[Dict[str, Any]]]:
+        bp_sections = [
+            {"id": s.id, "heading": s.heading, "level": s.level,
+             "mandatory": s.mandatory, "content_hint": s.content_hint,
+             "has_subsections": len(s.subsections) > 0 or s.id == "chapters"}
+            for s in blueprint.sections
+        ]
+        is_eng = any(kw in topic.lower() for kw in ["engineering", "project", "design", "system"])
+        is_research = any(kw in topic.lower() for kw in ["research", "study", "analysis", "survey"])
+        hint_map = {
+            "engineering_project": "engineering project",
+            "research_paper": "research paper",
+            "internship_report": "internship report",
+        }
+        bp_hint = hint_map.get(blueprint.id, blueprint.name)
+
+        prompt = f"""Plan the chapter structure for a {bp_hint} on: {topic}
+
+Blueprint sections to include:
+{json.dumps([s for s in bp_sections if s["id"] not in ("cover_page","table_of_contents","list_of_figures","list_of_tables")], indent=2)}
+
+For the "chapters" section, generate {3 if is_research else 5} appropriate chapter headings with subsection headings.
+For all other sections (abstract, introduction, methodology, etc.), include them with just a heading.
+
+Output ONLY valid JSON with this structure:
+{{"sections": [
+  {{"blueprint_section_id": "introduction", "heading": "1. Introduction", "allocated_pages": 3, "level": 1,
+    "subsections": [{{"heading": "1.1 Background", "level": 2}}, {{"heading": "1.2 Problem Statement", "level": 2}}],
+    "requires_figure": false, "requires_table": false}},
+  {{"blueprint_section_id": "chapters", "heading": "2. Literature Review", "allocated_pages": 5, "level": 1,
+    "subsections": [{{"heading": "2.1 Theoretical Foundations", "level": 2}}, {{"heading": "2.2 Related Work", "level": 2}}],
+    "requires_figure": false, "requires_table": true}}
+]}}"""
+
+        messages = [
+            Message(role="system", content="You plan academic report structures. Output only valid JSON."),
+            Message(role="user", content=prompt),
+        ]
+
+        try:
+            opts = CompletionOptions(temperature=0.3, max_tokens=4096, timeout=60)
+            response = self.provider.chat(messages, options=opts)
+            data = self._extract_json(response.content)
+            if data and "sections" in data and len(data["sections"]) > 0:
+                logger.info(f"LLM generated structure with {len(data['sections'])} sections")
+                return data["sections"]
+            return None
+        except Exception as e:
+            logger.warning(f"LLM structure generation error: {e}")
+            return None
+
+    def _extract_json(self, text: str) -> Optional[Dict[str, Any]]:
+        import re as _re
+        text = text.strip()
+        text = _re.sub(r'^```(?:json)?\s*', '', text, flags=_re.IGNORECASE)
+        text = _re.sub(r'\s*```$', '', text)
+
+        json_match = _re.search(r'\{.*\}', text, _re.DOTALL)
+        if not json_match:
+            return None
+
+        raw = json_match.group()
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            pass
+
+        fixed = _re.sub(r"(?<!\\)'(.*?)'(?=\s*:)", r'"\1"', raw)
+        fixed = _re.sub(r":\s*'(.*?)'(?=[\s,}])", r': "\1"', fixed)
+        fixed = _re.sub(r",\s*}", "}", fixed)
+        fixed = _re.sub(r",\s*]", "]", fixed)
+        try:
+            return json.loads(fixed)
+        except json.JSONDecodeError:
+            pass
+
+        fixed2 = _re.sub(r'//[^\n]*', '', fixed)
+        try:
+            return json.loads(fixed2)
+        except json.JSONDecodeError:
+            return None
 
     def _plan_fallback(self, topic: str, blueprint: Blueprint,
                        title: str = "", author: str = "",
@@ -319,15 +375,4 @@ Only include sections that are in the blueprint above."""
             references=references,
         )
 
-    def _parse_json(self, text: str) -> Dict[str, Any]:
-        json_match = re.search(r'\{.*\}', text, re.DOTALL)
-        if json_match:
-            try:
-                return json.loads(json_match.group())
-            except json.JSONDecodeError:
-                pass
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            logger.error("Failed to parse LLM response as JSON")
-            return {"sections": [], "total_pages": 0}
+

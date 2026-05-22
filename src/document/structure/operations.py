@@ -46,7 +46,7 @@ def _make_paragraph_xml(text: str, font_name: str = None,
                          alignment: str = None,
                          space_after: int = None) -> OxmlElement:
     p = OxmlElement('w:p')
-    pPr = FontFormatter.format_paragraph_xml(
+    pPr = ParagraphFormatter.format_paragraph_xml(
         alignment=alignment, space_after=space_after,
     )
     if pPr is not None:

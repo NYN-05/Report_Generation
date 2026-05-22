@@ -23,7 +23,8 @@ from src.memory import ContextManager, ReportHistory
 logger = get_logger("main")
 
 
-def run_with_topic(topic: str, rules_path: Optional[str] = None):
+def run_with_topic(topic: str, rules_path: Optional[str] = None,
+                   use_llm: bool = False):
     """Run report generation for a topic."""
     logger.info(f"Starting report generation for: {topic}")
     
@@ -54,7 +55,7 @@ def run_with_topic(topic: str, rules_path: Optional[str] = None):
         
         # Step 4: Generate document
         logger.info("Generating Word document...")
-        gen_pipeline = ScratchPipeline(rules_path=rules_path)
+        gen_pipeline = ScratchPipeline(rules_path=rules_path, use_llm=use_llm)
         doc_result = gen_pipeline.execute(content)
         
         if not doc_result.success:
@@ -164,6 +165,12 @@ def main():
         metavar='FILE',
         help='Path to custom rules JSON/MD file'
     )
+
+    parser.add_argument(
+        '--use-llm',
+        action='store_true',
+        help='Use LLM for dynamic structure planning (requires Ollama)'
+    )
     
     args = parser.parse_args()
     
@@ -189,7 +196,7 @@ def main():
         return
     
     if args.topic:
-        run_with_topic(args.topic, rules_path=args.rules)
+        run_with_topic(args.topic, rules_path=args.rules, use_llm=args.use_llm)
     else:
         parser.print_help()
         print("\nExample:")

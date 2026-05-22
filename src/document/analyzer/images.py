@@ -1,5 +1,5 @@
 import re
-from typing import List, Optional
+from typing import Dict, List, Optional
 from docx import Document as DocxDocument
 from docx.oxml.ns import qn
 
@@ -10,7 +10,7 @@ EMUS_PER_INCH = 914400
 
 
 FIGURE_CAPTION_PATTERN = re.compile(
-    r'^(figure|fig\.)\s+\d+[\.:]?', re.IGNORECASE
+    r'^(figure|fig\.)\s+\d+(\.\d+)*[\.:\s]', re.IGNORECASE
 )
 
 
@@ -91,14 +91,36 @@ class ImageDetector:
         return images
 
     def _attach_captions(self):
+        MAX_CAPTION_DISTANCE = 20
+        caption_map: Dict[int, str] = {}
         for pi, para in enumerate(self.doc.paragraphs):
             text = para.text.strip()
-            m = FIGURE_CAPTION_PATTERN.match(text)
-            if m:
-                for img in reversed(self._images):
-                    if img.caption is None and img.paragraph_index < pi:
-                        img.caption = text
-                        break
+            if FIGURE_CAPTION_PATTERN.match(text):
+                caption_map[pi] = text
+
+        used_captions: set = set()
+        for img in self._images:
+            best_caption = None
+            best_score = float('inf')
+            best_cpi = -1
+
+            for cpi, caption_text in caption_map.items():
+                if cpi in used_captions:
+                    continue
+                distance = abs(img.paragraph_index - cpi)
+                if distance > MAX_CAPTION_DISTANCE:
+                    continue
+                score = distance - 0.5 if cpi > img.paragraph_index else distance
+
+                if score < best_score:
+                    best_score = score
+                    best_caption = caption_text
+                    best_cpi = cpi
+
+            if best_caption is not None:
+                img.caption = best_caption
+                if best_cpi >= 0:
+                    used_captions.add(best_cpi)
 
     def _resolve_anchor_sections(self):
         for img in self._images:

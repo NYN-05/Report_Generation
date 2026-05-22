@@ -57,6 +57,7 @@ class CompletionOptions:
     max_tokens: Optional[int] = None
     stop: Optional[List[str]] = None
     stream: bool = False
+    timeout: Optional[int] = None
 
 
 class BaseProvider(ABC):

@@ -21,9 +21,11 @@ logger = get_logger(__name__)
 class ScratchPipeline(BasePipeline):
     """Pipeline for generating Word documents from scratch using blueprints."""
 
-    def __init__(self, output_dir: str = "output", rules_path: Optional[str] = None):
+    def __init__(self, output_dir: str = "output", rules_path: Optional[str] = None,
+                 use_llm: bool = False):
         super().__init__("scratch")
         self.output_dir = output_dir
+        self._use_llm = use_llm
         config = get_config()
         self.output_dir = config.export.output_directory
         os.makedirs(self.output_dir, exist_ok=True)
@@ -71,6 +73,8 @@ class ScratchPipeline(BasePipeline):
                 title=content.get('title', ''),
                 author=content.get('author', ''),
                 date=content.get('date', ''),
+                use_llm=self._use_llm,
+                llm_timeout=60,
             )
 
             errors = self._bp_validator.validate(plan, blueprint)

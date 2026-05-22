@@ -5,6 +5,7 @@ from .models import (
     DocKnowledgeGraph, SectionInfo, HeadingInfo, StyleProfile,
     TableInfo, ImageInfo, ReferenceInfo, CitationLink, ParagraphInfo,
     FootnoteInfo, HeaderFooterInfo, CrossReferenceInfo,
+    WatermarkInfo, EquationInfo,
 )
 from .heading import HeadingDetector
 from .classifier import SectionClassifier
@@ -15,6 +16,8 @@ from .references import ReferenceDetector
 from .footnotes import FootnoteDetector
 from .headers_footers import HeaderFooterDetector
 from .cross_references import CrossReferenceDetector
+from .watermarks import WatermarkDetector
+from .equations import EquationDetector
 
 
 class KnowledgeGraphBuilder:
@@ -31,6 +34,8 @@ class KnowledgeGraphBuilder:
         self.footnote_detector = FootnoteDetector(doc)
         self.header_footer_detector = HeaderFooterDetector(doc)
         self.cross_reference_detector = CrossReferenceDetector(doc)
+        self.watermark_detector = WatermarkDetector(doc)
+        self.equation_detector = EquationDetector(doc)
 
     def build(self, filename: str = "") -> DocKnowledgeGraph:
         headings = self.heading_detector.detect()
@@ -48,6 +53,8 @@ class KnowledgeGraphBuilder:
         footnotes = self.footnote_detector.detect()
         headers_footers = self.header_footer_detector.detect()
         cross_references = self.cross_reference_detector.detect()
+        watermarks = self.watermark_detector.detect()
+        equations = self.equation_detector.detect()
 
         self._assign_content_to_sections(sections, tables, images, refs, headings)
         self._assign_tables_to_sections(sections, tables)
@@ -56,6 +63,7 @@ class KnowledgeGraphBuilder:
         stats = self._compute_statistics(
             sections, headings, styles, tables, images, refs, citations,
             paragraphs, footnotes, headers_footers, cross_references,
+            watermarks, equations,
         )
 
         graph = DocKnowledgeGraph(
@@ -71,6 +79,8 @@ class KnowledgeGraphBuilder:
             footnotes=footnotes,
             headers_footers=headers_footers,
             cross_references=cross_references,
+            watermarks=watermarks,
+            equations=equations,
             statistics=stats,
         )
         return graph
@@ -191,6 +201,8 @@ class KnowledgeGraphBuilder:
         footnotes: List[FootnoteInfo] = None,
         headers_footers: List[HeaderFooterInfo] = None,
         cross_references: List[CrossReferenceInfo] = None,
+        watermarks: List[WatermarkInfo] = None,
+        equations: List[EquationInfo] = None,
     ) -> Dict[str, Any]:
         total_paras = len(self.doc.paragraphs)
         text_paras = sum(1 for p in self.doc.paragraphs if p.text.strip())
@@ -227,6 +239,8 @@ class KnowledgeGraphBuilder:
             "endnote_count": sum(1 for f in (footnotes or []) if "endnote" in str(type(f)).lower()),
             "header_footer_count": len(headers_footers or []),
             "cross_reference_count": len(cross_references or []),
+            "watermark_count": len(watermarks or []),
+            "equation_count": len(equations or []),
             "section_types": self._count_section_types(sections),
         }
 
