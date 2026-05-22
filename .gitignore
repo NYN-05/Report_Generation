@@ -1,0 +1,70 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+*.whl
+
+# --- Virtual environments ---
+venv/
+env/
+.venv/
+.env/
+*.venv
+
+# --- Generated output ---
+output/
+export/
+
+# --- Logs ---
+logs/
+*.log
+
+# --- Cache ---
+.pytest_cache/
+__pycache__/
+*.cache
+cache/
+
+# --- Temp files ---
+temp/
+tmp/
+*.tmp
+*.swp
+*.swo
+*~
+
+# --- IDEs ---
+.vscode/
+.idea/
+*.iml
+.vs/
+
+# --- OS files ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+
+# --- Config with secrets ---
+*.env
+.env.local
+config/local.yaml
+config/*.secret.yaml
+
+# --- Test artifacts ---
+.coverage
+htmlcov/
+.coverage.*
+coverage.xml
+*.cover
+.pytest_cache/
+
+# --- Documents ---
+*.pdf
+*.docx

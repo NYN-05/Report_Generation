@@ -1,0 +1,114 @@
+{
+  "id": "internship_report",
+  "name": "Internship Report",
+  "description": "Internship/training report documenting work done at a company or organization. Includes company profile, work details, outcomes, and conclusion.",
+  "default_chapter_count": 0,
+  "default_chapter_level": 1,
+  "references_style": "ieee",
+  "requires_toc": true,
+  "requires_lof": false,
+  "requires_lot": false,
+  "requires_appendix": true,
+  "total_pages_estimate": 25,
+  "sections": [
+    {
+      "id": "cover_page",
+      "heading": "Cover Page",
+      "level": 0,
+      "mandatory": true,
+      "page_break": true,
+      "generate_content": false,
+      "content_hint": "Internship title, intern name, company name, duration, date"
+    },
+    {
+      "id": "certificate",
+      "heading": "Certificate",
+      "level": 1,
+      "mandatory": true,
+      "page_break": true,
+      "generate_content": true,
+      "content_hint": "Certificate of completion from the organization"
+    },
+    {
+      "id": "acknowledgement",
+      "heading": "Acknowledgement",
+      "level": 1,
+      "mandatory": true,
+      "page_break": false,
+      "generate_content": true,
+      "content_hint": "Acknowledgements to company mentors, supervisors, and colleagues"
+    },
+    {
+      "id": "abstract",
+      "heading": "Abstract",
+      "level": 1,
+      "mandatory": true,
+      "page_break": false,
+      "generate_content": true,
+      "content_hint": "Brief summary of the internship, activities, and learning outcomes"
+    },
+    {
+      "id": "table_of_contents",
+      "heading": "Table of Contents",
+      "level": 1,
+      "mandatory": true,
+      "page_break": true,
+      "generate_content": false,
+      "content_hint": "Auto-generated table of contents"
+    },
+    {
+      "id": "company_profile",
+      "heading": "1. Company Profile",
+      "level": 1,
+      "mandatory": true,
+      "page_break": false,
+      "generate_content": true,
+      "content_hint": "Overview of the organization, history, mission, products/services"
+    },
+    {
+      "id": "work_done",
+      "heading": "2. Work Done",
+      "level": 1,
+      "mandatory": true,
+      "page_break": false,
+      "generate_content": true,
+      "content_hint": "Detailed description of tasks, projects, technologies used, responsibilities"
+    },
+    {
+      "id": "outcomes",
+      "heading": "3. Outcomes",
+      "level": 1,
+      "mandatory": true,
+      "page_break": false,
+      "generate_content": true,
+      "content_hint": "Learning outcomes, skills acquired, contributions to the organization"
+    },
+    {
+      "id": "conclusion",
+      "heading": "4. Conclusion",
+      "level": 1,
+      "mandatory": true,
+      "page_break": false,
+      "generate_content": true,
+      "content_hint": "Overall experience summary, recommendations, future scope"
+    },
+    {
+      "id": "references",
+      "heading": "References",
+      "level": 1,
+      "mandatory": true,
+      "page_break": true,
+      "generate_content": true,
+      "content_hint": "References and resources used during the internship"
+    },
+    {
+      "id": "appendices",
+      "heading": "Appendices",
+      "level": 1,
+      "mandatory": false,
+      "page_break": true,
+      "generate_content": true,
+      "content_hint": "Supporting documents, code samples, certificates"
+    }
+  ]
+}

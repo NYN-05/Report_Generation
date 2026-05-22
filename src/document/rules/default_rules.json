@@ -1,0 +1,263 @@
+{
+  "rules_version": "3.0",
+
+  "metadata": {
+    "name": "Professional Academic Engineering Report Rules",
+    "description": "Comprehensive standards for AI-generated university reports",
+    "author": "Report Generation System",
+    "version": "3.0.0"
+  },
+
+  "document_formatting": {
+    "page_size": "A4",
+    "orientation": "portrait",
+    "margin_top_in": 1.0,
+    "margin_bottom_in": 1.0,
+    "margin_left_in": 1.5,
+    "margin_right_in": 1.0,
+    "line_spacing": 1.5,
+    "justify_text": true,
+    "page_numbering": true,
+    "page_number_position": "bottom_center"
+  },
+
+  "font_rules": {
+    "default_font": "Times New Roman",
+    "body_font_size": 12,
+    "heading_1_font_size": 16,
+    "heading_2_font_size": 14,
+    "heading_3_font_size": 13,
+    "chapter_title_uppercase": true,
+    "heading_bold": true,
+    "font_color": "black"
+  },
+
+  "writing_quality": {
+    "academic_tone": true,
+    "third_person_writing": true,
+    "use_active_voice": true,
+    "avoid_repetition": true,
+    "require_transitions": true,
+    "require_examples": true,
+    "require_explanations": true,
+    "require_data_points": true,
+    "avoid_bullet_only_sections": true,
+    "minimum_readability_score": 75
+  },
+
+  "content_requirements": {
+    "min_paragraphs_per_section": 5,
+    "min_words_per_paragraph": 80,
+    "min_words_per_section": 600,
+    "min_subsections_per_chapter": 3,
+    "minimum_chapters": 5,
+    "maximum_chapters": 10
+  },
+
+  "citation_rules": {
+    "citation_style": "IEEE",
+    "minimum_references": 15,
+    "minimum_recent_references": 5,
+    "recent_reference_year_limit": 5,
+    "require_reference_section": true,
+    "require_in_text_citations": true
+  },
+
+  "plagiarism_rules": {
+    "max_similarity_percent": 15,
+    "require_paraphrasing": true,
+    "avoid_copy_paste_content": true,
+    "require_original_explanations": true
+  },
+
+  "figure_rules": {
+    "require_figures": true,
+    "minimum_figures_per_chapter": 2,
+    "caption_position": "below",
+    "numbering_format": "Figure X.Y",
+    "reference_figures_in_text": true
+  },
+
+  "table_rules": {
+    "require_tables": true,
+    "minimum_tables_per_chapter": 1,
+    "caption_position": "above",
+    "numbering_format": "Table X.Y",
+    "reference_tables_in_text": true
+  },
+
+  "diagram_rules": {
+    "require_architecture_diagram": true,
+    "require_workflow_diagram": true,
+    "require_system_design_diagram": true,
+    "minimum_diagrams_per_report": 5
+  },
+
+  "flowchart_rules": {
+    "require_methodology_flowchart": true,
+    "require_process_flowchart": true,
+    "minimum_flowcharts": 2
+  },
+
+  "algorithm_rules": {
+    "require_algorithm_description": true,
+    "require_stepwise_explanation": true,
+    "require_complexity_analysis": false
+  },
+
+  "implementation_rules": {
+    "require_module_explanation": true,
+    "require_technology_stack": true,
+    "require_system_architecture": true,
+    "require_testing_section": true,
+    "require_deployment_details": true
+  },
+
+  "report_blueprints": {
+    "engineering_project": {
+      "mandatory_sections": [
+        "certificate",
+        "declaration",
+        "acknowledgement",
+        "abstract",
+        "table_of_contents",
+        "list_of_figures",
+        "list_of_tables",
+        "introduction",
+        "literature_review",
+        "methodology",
+        "implementation",
+        "results",
+        "conclusion",
+        "references"
+      ]
+    },
+
+    "research_paper": {
+      "mandatory_sections": [
+        "abstract",
+        "introduction",
+        "literature_review",
+        "methodology",
+        "results",
+        "discussion",
+        "conclusion",
+        "references"
+      ]
+    },
+
+    "internship_report": {
+      "mandatory_sections": [
+        "certificate",
+        "acknowledgement",
+        "organization_profile",
+        "work_performed",
+        "skills_gained",
+        "outcomes",
+        "conclusion"
+      ]
+    }
+  },
+
+  "section_types": {
+    "abstract": {
+      "mandatory": true,
+      "min_words": 350,
+      "max_words": 500,
+      "required_elements": [
+        "problem_statement",
+        "objective",
+        "methodology",
+        "results",
+        "conclusion"
+      ]
+    },
+
+    "introduction": {
+      "mandatory": true,
+      "min_words": 1000,
+      "min_paragraphs": 6,
+      "structure": [
+        "background",
+        "problem_statement",
+        "motivation",
+        "objectives",
+        "scope",
+        "report_organization"
+      ]
+    },
+
+    "literature_review": {
+      "mandatory": true,
+      "min_words": 1500,
+      "min_paragraphs": 8,
+      "require_references": 10,
+      "require_comparison_table": true,
+      "require_gap_analysis": true
+    },
+
+    "methodology": {
+      "mandatory": true,
+      "min_words": 1200,
+      "require_workflow_description": true,
+      "require_architecture_diagram": true,
+      "require_algorithm_description": true
+    },
+
+    "implementation": {
+      "mandatory": true,
+      "min_words": 1500,
+      "require_module_explanation": true,
+      "require_system_design": true,
+      "require_screenshots": true
+    },
+
+    "results": {
+      "mandatory": true,
+      "min_words": 1000,
+      "require_tables": true,
+      "require_figures": true,
+      "require_performance_metrics": true,
+      "require_comparison_analysis": true
+    },
+
+    "discussion": {
+      "mandatory": false,
+      "min_words": 800,
+      "require_interpretation": true,
+      "require_limitations": true
+    },
+
+    "conclusion": {
+      "mandatory": true,
+      "min_words": 700,
+      "require_summary": true,
+      "require_contributions": true,
+      "require_future_scope": true
+    }
+  },
+
+  "validation_rules": {
+    "check_heading_hierarchy": true,
+    "check_toc_consistency": true,
+    "check_page_numbering": true,
+    "check_figure_numbering": true,
+    "check_table_numbering": true,
+    "check_reference_consistency": true,
+    "check_duplicate_content": true,
+    "check_chapter_sequence": true,
+    "check_word_counts": true
+  },
+
+  "report_scoring": {
+    "content_quality_weight": 30,
+    "technical_depth_weight": 25,
+    "academic_writing_weight": 15,
+    "formatting_weight": 10,
+    "citations_weight": 10,
+    "figures_tables_weight": 10,
+
+    "passing_score": 75,
+    "excellent_score": 90
+  }
+}

@@ -1,0 +1,115 @@
+{
+  "id": "engineering_project",
+  "name": "Engineering Project Report",
+  "description": "Standard blueprint for final year engineering project reports. Includes certificate, declaration, acknowledgement, abstract, TOC, list of figures, list of tables, multiple technical chapters, references, and appendices.",
+  "default_chapter_count": 5,
+  "default_chapter_level": 1,
+  "references_style": "ieee",
+  "requires_toc": true,
+  "requires_lof": true,
+  "requires_lot": true,
+  "requires_appendix": true,
+  "total_pages_estimate": 60,
+  "sections": [
+    {
+      "id": "cover_page",
+      "heading": "Cover Page",
+      "level": 0,
+      "mandatory": true,
+      "page_break": true,
+      "generate_content": false,
+      "content_hint": "Project title, author name, institution, date"
+    },
+    {
+      "id": "certificate",
+      "heading": "Certificate",
+      "level": 1,
+      "mandatory": true,
+      "page_break": true,
+      "generate_content": true,
+      "content_hint": "Certificate of approval from supervisor and head of department"
+    },
+    {
+      "id": "declaration",
+      "heading": "Declaration",
+      "level": 1,
+      "mandatory": true,
+      "page_break": false,
+      "generate_content": true,
+      "content_hint": "Student's declaration of original work"
+    },
+    {
+      "id": "acknowledgement",
+      "heading": "Acknowledgement",
+      "level": 1,
+      "mandatory": true,
+      "page_break": false,
+      "generate_content": true,
+      "content_hint": "Acknowledgements to supervisor, department, family, and friends"
+    },
+    {
+      "id": "abstract",
+      "heading": "Abstract",
+      "level": 1,
+      "mandatory": true,
+      "page_break": false,
+      "generate_content": true,
+      "content_hint": "Brief summary of the project, objectives, methodology, key findings"
+    },
+    {
+      "id": "table_of_contents",
+      "heading": "Table of Contents",
+      "level": 1,
+      "mandatory": true,
+      "page_break": true,
+      "generate_content": false,
+      "content_hint": "Auto-generated table of contents"
+    },
+    {
+      "id": "list_of_figures",
+      "heading": "List of Figures",
+      "level": 1,
+      "mandatory": true,
+      "page_break": false,
+      "generate_content": false,
+      "content_hint": "Auto-generated list of figures"
+    },
+    {
+      "id": "list_of_tables",
+      "heading": "List of Tables",
+      "level": 1,
+      "mandatory": true,
+      "page_break": false,
+      "generate_content": false,
+      "content_hint": "Auto-generated list of tables"
+    },
+    {
+      "id": "chapters",
+      "heading": "Chapters",
+      "level": 1,
+      "mandatory": true,
+      "page_break": true,
+      "generate_content": true,
+      "content_hint": "Main technical chapters of the project report",
+      "subsections": []
+    },
+    {
+      "id": "references",
+      "heading": "References",
+      "level": 1,
+      "mandatory": true,
+      "page_break": true,
+      "generate_content": true,
+      "content_hint": "List of references cited in the report in IEEE format"
+    },
+    {
+      "id": "appendices",
+      "heading": "Appendices",
+      "level": 1,
+      "mandatory": false,
+      "page_break": true,
+      "generate_content": true,
+      "content_hint": "Supplementary material, code listings, detailed data"
+    }
+  ]
+}
