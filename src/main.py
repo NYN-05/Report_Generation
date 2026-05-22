@@ -29,12 +29,18 @@ def run_coordinated(topic: str, output_path: str = "output/output.docx",
     """Run the CoordinatedPipeline with optional phase selection."""
     logger.info(f"Coordinated pipeline for: {topic}")
     from src.pipeline import CoordinatedPipeline
+    from src.generator import ReportGenerator
+    from src.memory import MemoryHub
 
     pipe = CoordinatedPipeline()
     result = pipe.execute(
         {"topic": topic, "output_path": output_path, "formats": formats or ["docx"]},
         phases=phases,
         callback=lambda phase, status: print(f"  [{status}] {phase}"),
+        components={
+            "report_generator": ReportGenerator(),
+            "memory_hub": MemoryHub(),
+        },
     )
     if result.success:
         print(f"\n[OK] Pipeline complete in {result.execution_time:.2f}s")

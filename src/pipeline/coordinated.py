@@ -269,10 +269,11 @@ class CoordinatedPipeline(BasePipeline):
 
     def _run_export(self, ctx: PipelineContext) -> bool:
         try:
+            plan = ctx.plan or self._make_fallback_plan(ctx)
             from src.agents.export_agent import ExportAgent
             agent = ExportAgent()
             result = agent.execute({
-                "plan": ctx.plan,
+                "plan": plan,
                 "output_path": ctx.output_path,
                 "formats": ctx.formats,
                 "builder": ctx.export_builder,
@@ -286,3 +287,25 @@ class CoordinatedPipeline(BasePipeline):
             ctx.errors.append(f"export: {e}")
             logger.warning(f"Export skipped ({e})")
             return True
+
+    @staticmethod
+    def _make_fallback_plan(ctx: PipelineContext):
+        """Build a minimal plan object from the report generator output."""
+        report = ctx.metadata.get("report", {})
+        if not report or not report.get("chapters"):
+            return None
+
+        class _Section:
+            def __init__(self, heading, content):
+                self.heading = heading
+                self.content = content
+                self.blueprint_section_id = "chapters"
+                self.level = 1
+
+        class _FallbackPlan:
+            def __init__(self, chapters):
+                self.sections = [_Section(ch.get("heading", "Chapter"), ch.get("content", ""))
+                                 for ch in chapters]
+                self.references = []
+
+        return _FallbackPlan(report.get("chapters", []))

@@ -54,8 +54,9 @@ class ReportGenerator(BaseGenerator):
         ]
 
         if not chapter_configs:
-            chapter_configs = [{"heading": f"Chapter {i+1}", "section_count": 3}
-                               for i in range(4)]
+            topic = context.topic
+            chapters = self._topic_chapters(topic)
+            chapter_configs = [{"heading": h, "section_count": 3} for h in chapters]
 
         chapters = self._ch_gen.generate_chapters(context, chapter_configs)
 
@@ -78,6 +79,19 @@ class ReportGenerator(BaseGenerator):
             "total_words": len(all_content.split()),
             "coherence": coherence,
         }
+
+    @staticmethod
+    def _topic_chapters(topic: str) -> List[str]:
+        """Derive meaningful chapter headings from the topic."""
+        words = topic.lower().split()
+        key_terms = [w for w in words if len(w) > 3]
+        core = " ".join(key_terms[:3]) if key_terms else topic
+        return [
+            f"Foundations of {core}",
+            f"Mechanisms and Drivers of {core}",
+            f"Impact and Consequences of {core}",
+            f"Interventions and Future Directions in {core}",
+        ]
 
     @staticmethod
     def _check_coherence(chapters: List[Dict]) -> Dict:

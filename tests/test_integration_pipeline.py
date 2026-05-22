@@ -204,10 +204,13 @@ class TestCoordinatedPipeline:
 
     def test_agent_coordinator_initialization(self):
         from src.agents import AgentCoordinator
-        from src.agents.base import BaseAgent
+        from src.agents.base import BaseAgent, AgentResponse
+        class _DummyAgent(BaseAgent):
+            def execute(self, input_data, **kwargs):
+                return AgentResponse(success=True)
         coord = AgentCoordinator(agents={
-            "research": BaseAgent("research"),
-            "writing": BaseAgent("writing"),
+            "research": _DummyAgent("research"),
+            "writing": _DummyAgent("writing"),
         })
         assert coord.name == "coordinator"
         status = coord.get_agent_status()
@@ -216,12 +219,20 @@ class TestCoordinatedPipeline:
 
     def test_agent_coordinator_execute_no_topic(self):
         from src.agents import AgentCoordinator
-        coord = AgentCoordinator()
+        from src.agents.base import BaseAgent, AgentResponse
+        class _DummyAgent(BaseAgent):
+            def execute(self, input_data, **kwargs):
+                return AgentResponse(success=True)
+        coord = AgentCoordinator(agents={"dummy": _DummyAgent("dummy")})
         assert coord.execute("not a dict").success is False
 
     def test_agent_coordinator_execute_with_topic(self):
+        from src.agents.base import BaseAgent, AgentResponse
         from src.agents import AgentCoordinator
-        coord = AgentCoordinator()
+        class _DummyAgent(BaseAgent):
+            def execute(self, input_data, **kwargs):
+                return AgentResponse(success=True, data={"phase": "dummy"})
+        coord = AgentCoordinator(agents={"dummy": _DummyAgent("dummy")})
         result = coord.execute({"topic": "Test Topic"})
         assert result.success is True
         assert result.data["topic"] == "Test Topic"
