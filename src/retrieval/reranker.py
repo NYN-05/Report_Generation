@@ -1,3 +1,17 @@
+"""
+Reranker Module
+===============
+Cross-encoder reranker with graceful fallback to keyword overlap.
+
+Architecture:
+    Query + Candidate Chunks → CrossEncoder → Relevance Scores → Sorted Context
+
+Requirements:
+    - sentence-transformers must be installed for model-based reranking
+    - Falls back to keyword overlap when model unavailable
+    - No heavy imports on construction (only on explicit load_model call)
+"""
+
 import hashlib
 import threading
 from typing import List, Dict, Optional, Callable
@@ -7,60 +21,59 @@ logger = get_logger(__name__)
 
 
 class Reranker:
-    """Cross-encoder reranker using sentence-transformers or BAAI/bge-reranker.
-
-    Architecture:
-        Query + Candidate Chunks → CrossEncoder → Relevance Scores → Sorted Context
+    """Re-ranks search results using cross-encoder or fallback scoring.
 
     Features:
-        - Lazy loading (model loaded on first use)
+        - Lazy loading (model loaded on first use via load_model())
         - GPU support with CPU fallback
         - Batch scoring
         - Result caching
         - Configurable score calibration [0.0, 1.0]
+        - Graceful fallback to keyword overlap when model unavailable
     """
 
     def __init__(self, model: str = "BAAI/bge-reranker-v2-m3",
                  cache_size: int = 512):
         self._model_name = model
         self._model = None
-        self._pipeline = None
         self._available = False
         self._lock = threading.Lock()
         self._cache: Dict[str, float] = {}
         self._cache_size = cache_size
-        self._load_attempted = False
+        self._import_attempted = False
 
-    def _load(self):
-        if self._load_attempted:
-            return
-        self._load_attempted = True
-        try:
-            from sentence_transformers import CrossEncoder
-            self._model = CrossEncoder(
-                self._model_name,
-                device=self._detect_device(),
-                trust_remote_code=True,
-            )
-            self._available = True
-            logger.info(f"Reranker loaded: {self._model_name} on {self._detect_device()}")
-        except ImportError:
-            logger.warning("sentence-transformers not available; using fallback reranker")
-            self._pipeline = self._fallback_rerank
-        except Exception as e:
-            logger.warning(f"Failed to load reranker model '{self._model_name}': {e}")
-            self._pipeline = self._fallback_rerank
+    def load_model(self) -> bool:
+        """Attempt to load the cross-encoder model. Returns True if successful.
+
+        This is the only method that performs heavy imports (sentence-transformers, torch).
+        Safe to call at any time — will only attempt once.
+        """
+        if self._import_attempted:
+            return self._available
+        self._import_attempted = True
+
+        device = self._detect_device()
+
+        for attempt, dev in [(f"default ({device})", device), ("CPU fallback", "cpu")]:
             try:
                 from sentence_transformers import CrossEncoder
                 self._model = CrossEncoder(
                     self._model_name,
-                    device="cpu",
+                    device=dev,
                     trust_remote_code=True,
                 )
                 self._available = True
-                logger.info(f"Reranker loaded on CPU fallback: {self._model_name}")
-            except Exception as e2:
-                logger.warning(f"CPU fallback also failed: {e2}")
+                logger.info(f"Reranker loaded: {self._model_name} on {dev}")
+                return True
+            except ImportError:
+                logger.warning("sentence-transformers not available; reranker disabled")
+                break
+            except Exception as e:
+                logger.warning(f"Reranker load failed on {dev}: {e}")
+                continue
+
+        self._available = False
+        return False
 
     def _detect_device(self) -> str:
         try:
@@ -72,19 +85,18 @@ class Reranker:
         return "cpu"
 
     def is_available(self) -> bool:
-        self._load()
         return self._available
 
+    def is_model_loaded(self) -> bool:
+        return self._import_attempted and self._available
+
     def rerank(self, query: str, results: List[Dict], top_n: int = 5) -> List[Dict]:
+        """Re-rank results using loaded model or fallback scoring."""
         if not results:
             return results
-        self._load()
 
         if self._model is not None:
             return self._cross_encoder_rerank(query, results, top_n)
-
-        if self._pipeline is not None:
-            return self._pipeline(query, results, top_n)
 
         return self._fallback_rerank(query, results, top_n)
 
@@ -106,14 +118,15 @@ class Reranker:
             return results[:top_n]
 
         except Exception as e:
-            logger.warning(f"Cross-encoder rerank failed, using fallback: {e}")
+            logger.warning(f"Cross-encoder rerank failed: {e}")
             return self._fallback_rerank(query, results, top_n)
 
     def _calibrate(self, raw_score: float) -> float:
+        """Calibrate raw cross-encoder output to [0.0, 1.0]."""
         calibrated = (raw_score + 1.0) / 2.0
         return max(0.0, min(1.0, calibrated))
 
-    def _cached_score(self, query: str, text: str) -> float:
+    def _cached_score(self, query: str, text: str) -> Optional[float]:
         key = hashlib.md5(f"{query}|{text}".encode()).hexdigest()
         return self._cache.get(key)
 
@@ -125,6 +138,7 @@ class Reranker:
 
     def _fallback_rerank(self, query: str, results: List[Dict],
                           top_n: int) -> List[Dict]:
+        """Keyword overlap fallback when model is unavailable."""
         query_terms = set(query.lower().split())
         for r in results:
             text = r.get("text", "")
