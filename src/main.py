@@ -24,7 +24,9 @@ logger = get_logger("main")
 
 
 def run_with_topic(topic: str, rules_path: Optional[str] = None,
-                   use_llm: bool = False):
+                   use_llm: bool = False,
+                   knowledge_dir: Optional[str] = None,
+                   skip_review: bool = False):
     """Run report generation for a topic."""
     logger.info(f"Starting report generation for: {topic}")
     
@@ -55,7 +57,11 @@ def run_with_topic(topic: str, rules_path: Optional[str] = None,
         
         # Step 4: Generate document
         logger.info("Generating Word document...")
-        gen_pipeline = ScratchPipeline(rules_path=rules_path, use_llm=use_llm)
+        gen_pipeline = ScratchPipeline(
+            rules_path=rules_path, use_llm=use_llm,
+            knowledge_dir=knowledge_dir,
+            enable_review=not skip_review,
+        )
         doc_result = gen_pipeline.execute(content)
         
         if not doc_result.success:
@@ -171,6 +177,18 @@ def main():
         action='store_true',
         help='Use LLM for dynamic structure planning (requires Ollama)'
     )
+
+    parser.add_argument(
+        '--knowledge-dir',
+        metavar='DIR',
+        help='Directory with reference documents (PDFs/txt) for RAG'
+    )
+
+    parser.add_argument(
+        '--skip-review',
+        action='store_true',
+        help='Skip the multi-pass review pipeline'
+    )
     
     args = parser.parse_args()
     
@@ -196,7 +214,9 @@ def main():
         return
     
     if args.topic:
-        run_with_topic(args.topic, rules_path=args.rules, use_llm=args.use_llm)
+        run_with_topic(args.topic, rules_path=args.rules, use_llm=args.use_llm,
+                       knowledge_dir=args.knowledge_dir,
+                       skip_review=args.skip_review)
     else:
         parser.print_help()
         print("\nExample:")

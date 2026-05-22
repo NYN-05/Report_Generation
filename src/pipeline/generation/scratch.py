@@ -2,6 +2,7 @@
 Scratch Generation Pipeline
 ===========================
 Generates documents from scratch using the Dynamic Academic Report Blueprint System.
+Integrates ingestion (RAG), review pipeline, and memory tracking.
 """
 
 import os
@@ -22,10 +23,12 @@ class ScratchPipeline(BasePipeline):
     """Pipeline for generating Word documents from scratch using blueprints."""
 
     def __init__(self, output_dir: str = "output", rules_path: Optional[str] = None,
-                 use_llm: bool = False):
+                 use_llm: bool = False, knowledge_dir: Optional[str] = None,
+                 enable_review: bool = True):
         super().__init__("scratch")
         self.output_dir = output_dir
         self._use_llm = use_llm
+        self._enable_review = enable_review
         config = get_config()
         self.output_dir = config.export.output_directory
         os.makedirs(self.output_dir, exist_ok=True)
@@ -37,6 +40,33 @@ class ScratchPipeline(BasePipeline):
         self._bp_planner = AIReportPlanner(rules_engine=self._rules_engine)
         self._bp_builder = BlueprintBuilder()
         self._bp_validator = BlueprintValidator()
+
+        self._ingestion = None
+        self._review = None
+        self._memory = None
+        self._init_optional_modules(knowledge_dir)
+
+    def _init_optional_modules(self, knowledge_dir: Optional[str] = None):
+        try:
+            from src.ingestion import IngestionPipeline
+            self._ingestion = IngestionPipeline()
+            if knowledge_dir and os.path.isdir(knowledge_dir):
+                count = self._ingestion.ingest_directory(knowledge_dir)
+                logger.info(f"Ingested {count} knowledge chunks from {knowledge_dir}")
+        except Exception as e:
+            logger.warning(f"Ingestion module init failed: {e}")
+
+        try:
+            from src.review import ReviewPipeline
+            self._review = ReviewPipeline()
+        except Exception as e:
+            logger.warning(f"Review module init failed: {e}")
+
+        try:
+            from src.memory import MemoryHub
+            self._memory = MemoryHub()
+        except Exception as e:
+            logger.warning(f"Memory module init failed: {e}")
 
     def execute(self, input_data: Dict, **kwargs) -> PipelineResult:
         content = input_data.get('content', input_data)
@@ -83,6 +113,23 @@ class ScratchPipeline(BasePipeline):
                 for err in errors:
                     logger.warning(f"  - {err}")
 
+            review_results = {}
+            if self._enable_review and self._review:
+                sections_data = [
+                    {"heading": s.heading, "content": s.content}
+                    for s in plan.sections
+                ]
+                review_results = self._review.review_sections(sections_data)
+                summary = self._review.get_summary(review_results)
+                logger.info(f"Review: {summary}")
+
+            if self._memory:
+                for sec in plan.sections:
+                    if sec.content:
+                        self._memory.process_section(sec.content)
+                mem_status = self._memory.get_status()
+                logger.info(f"Memory: {mem_status}")
+
             output_path = os.path.join(self.output_dir, "output.docx")
             success = self._bp_builder.build(plan, output_path)
 
@@ -97,6 +144,7 @@ class ScratchPipeline(BasePipeline):
                         "blueprint": plan.blueprint_name,
                         "plan": plan.to_dict(),
                         "validation_errors": errors,
+                        "review": review_results,
                     }
                 )
             else:

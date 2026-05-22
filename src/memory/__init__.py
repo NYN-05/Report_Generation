@@ -1,18 +1,11 @@
-"""
-Memory Module
-=============
-Context and history management.
-"""
-
-from .context import ConversationContext, ContextManager
-from .history import ReportHistory
+"""Memory module — context, cache, history, and tracking systems."""
+from .context import ContextManager, ConversationContext
 from .cache import ResponseCache
-from .persistence import PersistenceManager
+from .history import ReportHistory
+from .tracking import AbbreviationTracker, CitationTracker, MemoryHub
 
 __all__ = [
-    "ConversationContext",
-    "ContextManager",
-    "ReportHistory",
-    "ResponseCache",
-    "PersistenceManager",
+    "ContextManager", "ConversationContext",
+    "ResponseCache", "ReportHistory",
+    "AbbreviationTracker", "CitationTracker", "MemoryHub",
 ]
