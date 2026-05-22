@@ -11,6 +11,7 @@ from .generation.template import TemplatePipeline
 from .generator import ReportGeneratorPipeline
 from .export.pdf import PDFExportPipeline
 from .export.factory import ExportFactory
+from .coordinated import CoordinatedPipeline, PipelineContext
 
 __all__ = [
     "BasePipeline",
@@ -22,4 +23,6 @@ __all__ = [
     "ReportGeneratorPipeline",
     "PDFExportPipeline",
     "ExportFactory",
+    "CoordinatedPipeline",
+    "PipelineContext",
 ]
