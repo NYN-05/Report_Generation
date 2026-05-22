@@ -7,6 +7,7 @@ from .models import Blueprint, BlueprintSection, ReportPlan, PlanSection
 from src.core.logger import get_logger
 from src.providers import get_default_provider, Message, CompletionOptions
 from src.document.rules import RulesEngine, ReportRules
+from typing import Callable, Optional, Dict
 
 logger = get_logger(__name__)
 
@@ -41,11 +42,19 @@ class AIReportPlanner:
     """Plans report structure using an LLM, with fallback to template chapters."""
 
     def __init__(self, provider=None, rules_engine: Optional[RulesEngine] = None,
-                 rules_path: Optional[str] = None):
+                 rules_path: Optional[str] = None,
+                 context_assembler=None):
         self.provider = provider or get_default_provider()
         self._rules_engine = rules_engine or (
             RulesEngine(rules_path=rules_path) if rules_path else RulesEngine()
         )
+        self._context_assembler = context_assembler
+
+    def _retrieve_context(self, query: str) -> str:
+        if not self._context_assembler or not self._context_assembler.is_ready():
+            return ""
+        result = self._context_assembler.retrieve_context(query)
+        return result.get("context_text", "")
 
     def plan(self, topic: str, blueprint: Blueprint,
              title: str = "", author: str = "", date: str = "",
@@ -71,19 +80,23 @@ class AIReportPlanner:
             bp_id = sec.get("blueprint_section_id", "chapters")
             pages = sec.get("allocated_pages", 3)
 
+            context = self._retrieve_context(f"{topic} {sec['heading']}")
             content = self._rules_engine.generate_section_content(
                 topic=topic, heading=sec["heading"],
                 blueprint_section_id=bp_id, allocated_pages=pages,
+                retrieval_context=context,
             )
 
             subsections = []
             llm_subs = sec.get("subsections", [])
             if llm_subs:
                 for sub in llm_subs:
+                    sub_context = self._retrieve_context(f"{topic} {sub['heading']}")
                     sub_content = self._rules_engine.generate_section_content(
                         topic=topic, heading=sub["heading"],
                         blueprint_section_id=bp_id,
                         allocated_pages=max(1, pages // 2),
+                        retrieval_context=sub_context,
                     )
                     subsections.append(PlanSection(
                         blueprint_section_id=bp_id,
@@ -93,6 +106,7 @@ class AIReportPlanner:
                         allocated_pages=sub.get("allocated_pages", max(1, pages // 2)),
                         requires_figure=sub.get("requires_figure", False),
                         requires_table=sub.get("requires_table", False),
+                        retrieval_context=sub_context,
                     ))
             elif bp_id == "chapters":
                 subs_data = self._rules_engine.generate_subsections(
@@ -119,6 +133,7 @@ class AIReportPlanner:
                 requires_table=sec.get("requires_table", False),
                 table_headers=sec.get("table_headers", []),
                 table_rows=sec.get("table_rows", []),
+                retrieval_context=context,
             ))
 
         total_pages = sum(s.allocated_pages for s in sections)
@@ -238,9 +253,11 @@ Output ONLY valid JSON with this structure:
 
             if bp_id == "chapters":
                 for ch in chapter_templates:
+                    context = self._retrieve_context(f"{topic} {ch['heading']}")
                     content = self._rules_engine.generate_section_content(
                         topic=topic, heading=ch["heading"],
                         blueprint_section_id="chapters", allocated_pages=4,
+                        retrieval_context=context,
                     )
                     sec = PlanSection(
                         blueprint_section_id="chapters",
@@ -248,6 +265,7 @@ Output ONLY valid JSON with this structure:
                         level=bp_section.level,
                         content=content,
                         allocated_pages=4,
+                        retrieval_context=context,
                     )
                     subs_data = self._rules_engine.generate_subsections(
                         topic=topic, section_heading=ch["heading"],
@@ -303,14 +321,17 @@ Output ONLY valid JSON with this structure:
                     allocated_pages=1,
                 ))
             elif bp_id == "abstract":
+                context = self._retrieve_context(f"{topic} abstract introduction")
                 abstract_text = self._rules_engine.generate_section_content(
                     topic=topic, heading="Abstract",
                     blueprint_section_id="abstract", allocated_pages=1,
+                    retrieval_context=context,
                 )
                 sections.append(PlanSection(
                     blueprint_section_id="abstract", heading="Abstract",
                     content=abstract_text,
                     allocated_pages=1,
+                    retrieval_context=context,
                 ))
             elif bp_id in ("references",):
                 sections.append(PlanSection(
@@ -325,9 +346,11 @@ Output ONLY valid JSON with this structure:
                     allocated_pages=2,
                 ))
             else:
+                context = self._retrieve_context(f"{topic} {bp_section.heading}")
                 content = self._rules_engine.generate_section_content(
                     topic=topic, heading=bp_section.heading,
                     blueprint_section_id=bp_id, allocated_pages=2,
+                    retrieval_context=context,
                 )
                 sections.append(PlanSection(
                     blueprint_section_id=bp_id,
@@ -335,12 +358,12 @@ Output ONLY valid JSON with this structure:
                     level=bp_section.level,
                     content=content,
                     allocated_pages=2,
+                    retrieval_context=context,
                 ))
 
         total_pages = sum(s.allocated_pages for s in sections)
 
         topic_words = topic.split()[:3]
-        topic_short = " ".join(topic_words) if topic_words else topic
         domain_keywords = {
             "engineering": "Engineering", "computer": "Computer Science",
             "data": "Data Science", "machine": "Machine Learning",

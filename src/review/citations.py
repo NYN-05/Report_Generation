@@ -12,7 +12,6 @@ class CitationChecker(BaseChecker):
     def __init__(self):
         super().__init__("citation")
         self._cite_pattern = re.compile(r'\[(\d+(?:[-,]\s*\d+)*)\]')
-        self._year_pattern = re.compile(r'\(?\d{4}\)?')
 
     def check(self, sections: List[Dict], **kwargs) -> ReviewResult:
         result = ReviewResult(self.name)

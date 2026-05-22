@@ -24,6 +24,7 @@ from .exceptions import (
     ConfigurationException,
 )
 from .logger import get_logger, Logger
+from .state import DocumentState, ConversationState, ExecutionState, Workspace
 
 __all__ = [
     "ConfigManager",
@@ -45,4 +46,8 @@ __all__ = [
     "ConfigurationException",
     "get_logger",
     "Logger",
+    "DocumentState",
+    "ConversationState",
+    "ExecutionState",
+    "Workspace",
 ]

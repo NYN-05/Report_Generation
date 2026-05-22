@@ -1,0 +1,24 @@
+Write a literature review section for a {{ report_type }} on: {{ topic }}
+
+Structure:
+1. Review of existing work and prior research
+2. Analysis of current approaches and methodologies
+3. Identification of research gaps
+4. Theoretical framework
+
+Requirements:
+- Compare and contrast multiple sources
+- Identify gaps in current knowledge
+- IEEE citation format [N]
+- {{ target_words }} words minimum
+- Academic formal tone
+
+{% if retrieval_context %}
+Reference Material:
+{{ retrieval_context }}
+{% endif %}
+
+{% if citation_instructions %}
+Required Citations:
+{{ citation_instructions }}
+{% endif %}

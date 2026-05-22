@@ -2,7 +2,7 @@
 Scratch Generation Pipeline
 ===========================
 Generates documents from scratch using the Dynamic Academic Report Blueprint System.
-Integrates ingestion (RAG), review pipeline, and memory tracking.
+Integrates RAG retrieval (ContextAssembler), review pipeline, and memory tracking.
 """
 
 import os
@@ -26,7 +26,6 @@ class ScratchPipeline(BasePipeline):
                  use_llm: bool = False, knowledge_dir: Optional[str] = None,
                  enable_review: bool = True):
         super().__init__("scratch")
-        self.output_dir = output_dir
         self._use_llm = use_llm
         self._enable_review = enable_review
         config = get_config()
@@ -37,14 +36,19 @@ class ScratchPipeline(BasePipeline):
         self._rules_engine = RulesEngine(rules_path=rules_path) if rules_path else RulesEngine()
         self._bp_loader = BlueprintLoader()
         self._bp_selector = BlueprintSelector(self._bp_loader)
-        self._bp_planner = AIReportPlanner(rules_engine=self._rules_engine)
         self._bp_builder = BlueprintBuilder()
         self._bp_validator = BlueprintValidator()
 
         self._ingestion = None
         self._review = None
         self._memory = None
+        self._context_assembler = None
         self._init_optional_modules(knowledge_dir)
+
+        self._bp_planner = AIReportPlanner(
+            rules_engine=self._rules_engine,
+            context_assembler=self._context_assembler,
+        )
 
     def _init_optional_modules(self, knowledge_dir: Optional[str] = None):
         try:
@@ -53,8 +57,14 @@ class ScratchPipeline(BasePipeline):
             if knowledge_dir and os.path.isdir(knowledge_dir):
                 count = self._ingestion.ingest_directory(knowledge_dir)
                 logger.info(f"Ingested {count} knowledge chunks from {knowledge_dir}")
+                chunks = self._ingestion.get_chunks()
+                if chunks:
+                    from src.retrieval.context import ContextAssembler
+                    self._context_assembler = ContextAssembler()
+                    self._context_assembler.index_knowledge(chunks)
+                    logger.info(f"ContextAssembler indexed {len(chunks)} chunks for RAG retrieval")
         except Exception as e:
-            logger.warning(f"Ingestion module init failed: {e}")
+            logger.warning(f"Ingestion/RAG module init failed: {e}")
 
         try:
             from src.review import ReviewPipeline
@@ -77,6 +87,10 @@ class ScratchPipeline(BasePipeline):
 
         try:
             logger.info(f"Generating report: {content.get('title', 'Untitled')}")
+
+            rag_active = bool(self._context_assembler and self._context_assembler.is_ready())
+            if rag_active:
+                logger.info("RAG retrieval active: per-section context will be injected")
 
             if custom_blueprint:
                 blueprint = self._bp_loader.load_custom(custom_blueprint)
@@ -145,6 +159,7 @@ class ScratchPipeline(BasePipeline):
                         "plan": plan.to_dict(),
                         "validation_errors": errors,
                         "review": review_results,
+                        "rag_active": bool(self._context_assembler and self._context_assembler.is_ready()),
                     }
                 )
             else:

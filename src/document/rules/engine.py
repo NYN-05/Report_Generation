@@ -76,10 +76,44 @@ class RulesEngine:
         heading: str,
         blueprint_section_id: str = "",
         allocated_pages: int = 0,
+        retrieval_context: str = "",
     ) -> str:
         section_type = self.determine_section_type(heading, blueprint_section_id)
         rule = self._rules.get_rule(section_type)
-        return self._build_content_for_rule(topic, heading, rule, section_type, allocated_pages)
+
+        content = self._build_content_for_rule(topic, heading, rule, section_type, allocated_pages)
+
+        if retrieval_context:
+            content = self._inject_retrieval_context(content, retrieval_context, section_type)
+
+        return content
+
+    def _inject_retrieval_context(
+        self,
+        content: str,
+        context_text: str,
+        section_type: str,
+    ) -> str:
+        context_lines = context_text.strip().split("\n")
+        context_lines = [l for l in context_lines if l.strip()]
+        if not context_lines:
+            return content
+
+        context_summary = []
+        for line in context_lines[:5]:
+            clean = line.strip()
+            if clean and not clean.startswith("---") and not clean.startswith("Section:"):
+                context_summary.append(clean)
+
+        if context_summary:
+            reference_note = (
+                "\n\n---\n"
+                "Reference Material:\n"
+                + "\n".join(f"• {s[:150]}" for s in context_summary if s)
+            )
+            return content + reference_note
+
+        return content
 
     def generate_subsections(
         self,

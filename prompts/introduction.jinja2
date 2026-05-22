@@ -1,0 +1,31 @@
+Write a comprehensive academic introduction for a {{ report_type }} on: {{ topic }}
+
+Structure:
+1. Background and context of {{ topic }}
+2. Problem statement and research motivation
+3. Objectives and scope
+4. Methodology overview
+5. Report organization
+
+Requirements:
+- IEEE academic tone
+- Third-person formal writing
+- {{ target_words }} words minimum
+- Include transition flow to next section
+- Use technical terminology
+- No conversational language
+
+{% if retrieval_context %}
+Reference Material (use to support claims):
+{{ retrieval_context }}
+{% endif %}
+
+{% if chapter_summary %}
+Previous Context:
+{{ chapter_summary }}
+{% endif %}
+
+{% if citation_instructions %}
+Required Citations:
+{{ citation_instructions }}
+{% endif %}

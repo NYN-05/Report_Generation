@@ -17,7 +17,7 @@ class IngestionPipeline:
         self.chunker = SemanticChunker()
         self.embeddings = EmbeddingProvider()
         self.store = VectorStore(collection_name=collection_name, persist_dir=persist_dir)
-        self._current_docs = []
+        self._ingested_chunks: List[Dict] = []
 
     def ingest_file(self, filepath: str) -> int:
         text = self.parser.parse(filepath)
@@ -27,6 +27,7 @@ class IngestionPipeline:
         if self.embeddings.is_available():
             chunks = self.embeddings.embed_chunks(chunks)
         count = self.store.add_chunks(chunks)
+        self._ingested_chunks.extend(chunks)
         logger.info(f"Ingested {filepath}: {count} chunks")
         return count
 
@@ -38,9 +39,14 @@ class IngestionPipeline:
             if self.embeddings.is_available():
                 chunks = self.embeddings.embed_chunks(chunks)
             count = self.store.add_chunks(chunks)
+            self._ingested_chunks.extend(chunks)
             total += count
         logger.info(f"Ingested directory {dirpath}: {total} total chunks")
         return total
+
+    def get_chunks(self) -> List[Dict]:
+        """Return all ingested chunks with text, heading, source metadata."""
+        return list(self._ingested_chunks)
 
     def search(self, query: str, n_results: int = 5) -> List[Dict]:
         return self.store.search(query, n_results=n_results)

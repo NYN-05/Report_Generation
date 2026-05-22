@@ -1,0 +1,26 @@
+Write a formal academic abstract for a {{ report_type }} on: {{ topic }}
+
+Requirements:
+- IEEE academic tone
+- Third-person formal writing
+- 150-250 words
+- Include: background, problem, approach, results, conclusion
+- No conversational language
+- Use technical terminology
+
+{% if retrieval_context %}
+Reference Material:
+{{ retrieval_context }}
+{% endif %}
+
+{% if style_profile %}
+Style Constraints:
+- Sentence length: balanced
+- Tone: {{ style_profile.get('tone', 'formal academic') }}
+- Voice: {{ style_profile.get('voice', 'third-person passive') }}
+{% endif %}
+
+{% if citation_instructions %}
+Citation Requirements:
+{{ citation_instructions }}
+{% endif %}

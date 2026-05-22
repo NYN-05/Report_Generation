@@ -90,6 +90,7 @@ class PlanSection:
     table_description: str = ""
     table_headers: List[str] = field(default_factory=list)
     table_rows: List[List[str]] = field(default_factory=list)
+    retrieval_context: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -101,6 +102,7 @@ class PlanSection:
             "allocated_pages": self.allocated_pages,
             "requires_figure": self.requires_figure,
             "requires_table": self.requires_table,
+            "has_retrieval_context": bool(self.retrieval_context),
         }
 
 

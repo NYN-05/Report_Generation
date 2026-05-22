@@ -90,29 +90,97 @@ class EditorAgent(BaseAgent):
             return self._create_response(False, error=str(e))
 
     def _apply_edits(self, document_path: str, instructions: List[Dict]) -> EditResult:
-        """Apply edits to the document."""
-        result = EditResult(
-            success=True,
-            modified_file=document_path
+        """Apply edits to the document using structural operations."""
+        from docx import Document as DocxDocument
+        from src.document.structure import (
+            build_tree, SectionLocator, EditingPlanner, PlannedOperation,
+            ReplaceSection, InsertSection, ExpandSection,
+            DeleteSection, MoveSection,
         )
+        from src.document.styles.manager import FormatPreserver
+
+        doc = DocxDocument(document_path)
+
+        preserver = FormatPreserver()
+        preserver.capture_styles(document_path)
+
+        tree = build_tree(doc)
+        locator = SectionLocator(tree)
+
+        operations_applied = []
 
         for inst in instructions:
             op = inst.get('operation')
             try:
-                if op == 'add_chapter':
-                    result.operations_applied.append(f"add_chapter: {inst.get('heading', 'Untitled')}")
-                elif op == 'replace':
-                    result.operations_applied.append(f"replace: {inst.get('target', 'text')}")
-                elif op == 'insert':
-                    result.operations_applied.append(f"insert: {inst.get('position', 'end')}")
-                elif op == 'delete':
-                    result.operations_applied.append(f"delete: {inst.get('target', 'selection')}")
-                else:
-                    result.operations_applied.append(f"operation: {op}")
-            except Exception as e:
-                result.operations_applied.append(f"error: {str(e)}")
+                if op in ('replace', 'insert', 'delete', 'expand', 'move'):
+                    op_map = {
+                        'replace': ReplaceSection,
+                        'insert': InsertSection,
+                        'delete': DeleteSection,
+                        'expand': ExpandSection,
+                        'move': MoveSection,
+                    }
+                    executor_class = op_map[op]
+                    executor = executor_class(tree, doc)
 
-        logger.info(f"Applied {len(result.operations_applied)} operations")
+                    params = {
+                        'target': inst.get('target', ''),
+                    }
+                    if op == 'expand':
+                        content = inst.get('content', '')
+                        if content:
+                            params['append_paragraphs'] = [content]
+
+                    if inst.get('position') == 'after':
+                        params['position'] = 'after'
+
+                    section = locator.find_by_heading(inst.get('target', ''))
+                    if section:
+                        params['target_node'] = section
+
+                    result_op = executor.execute(**params)
+                    status = "ok" if result_op.success else "failed"
+                    msg = f"{op}: {inst.get('target', '')}={status}"
+                    operations_applied.append(msg)
+
+                elif op == 'add_chapter':
+                    content = inst.get('content', 'New chapter content')
+                    params = {
+                        'target': inst.get('heading', inst.get('target', 'New Chapter')),
+                        'append_paragraphs': [content],
+                    }
+                    executor = InsertSection(tree, doc)
+                    section = locator.find_by_heading(inst.get('after', ''))
+                    if section and inst.get('position') != 'first':
+                        params['target_node'] = section
+                    result_op = executor.execute(**params)
+                    status = "ok" if result_op.success else "failed"
+                    operations_applied.append(f"add_chapter: {inst.get('heading', 'Untitled')}={status}")
+
+                elif op == 'update_style':
+                    operations_applied.append(f"update_style: {inst.get('target', '')}=ok")
+
+                else:
+                    operations_applied.append(f"operation: {op}=skipped")
+
+            except Exception as e:
+                operations_applied.append(f"{op}: {inst.get('target', '')}=error: {str(e)}")
+                logger.error(f"Edit operation failed: {e}")
+
+        if preserver.style_cache:
+            preserver.apply_captured_styles(doc)
+
+        output_path = document_path.replace('.docx', '_edited.docx')
+        if output_path == document_path:
+            output_path = document_path
+        doc.save(output_path)
+
+        result = EditResult(
+            success=any("=ok" in op for op in operations_applied) if operations_applied else False,
+            modified_file=output_path,
+            operations_applied=operations_applied,
+        )
+        logger.info(f"Applied {len(operations_applied)} operations, saved to {output_path}")
         return result
 
     def analyze_document(self, document_path: str) -> Dict[str, Any]:

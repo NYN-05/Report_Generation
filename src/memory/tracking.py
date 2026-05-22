@@ -46,14 +46,15 @@ class AbbreviationTracker:
     def check_usage(self, text: str) -> List[str]:
         issues = []
         for abbr, definition in self._abbrevs.items():
-            if abbr.lower() in text.lower() and definition.lower() not in text.lower()[:200]:
-                if abbr not in text:
-                    continue
-                idx = text.lower().index(abbr.lower())
-                context_before = text[max(0, idx - 50):idx]
-                if definition.lower() not in context_before.lower():
-                    if abbr in text:
-                        issues.append(f"Abbreviation '{abbr}' used without definition nearby")
+            abbr_lower = abbr.lower()
+            if abbr_lower not in text.lower():
+                continue
+            if definition.lower() in text.lower()[:200]:
+                continue
+            idx = text.lower().index(abbr_lower)
+            context_before = text[max(0, idx - 50):idx]
+            if definition.lower() not in context_before.lower():
+                issues.append(f"Abbreviation '{abbr}' used without definition nearby")
         return issues
 
     def all_abbreviations(self) -> Dict[str, str]:
@@ -126,18 +127,64 @@ class MemoryHub:
     def __init__(self):
         self.abbreviations = AbbreviationTracker()
         self.citations = CitationTracker()
+        self._style = None
+        self._topic = None
+        self._figures = None
+        self._context = None
+        self._init_extended()
 
-    def process_section(self, content: str):
+    def _init_extended(self):
+        try:
+            from .extended import StyleMemory, TopicMemory, FigureMemory, ContextCompressor
+            self._style = StyleMemory()
+            self._topic = TopicMemory()
+            self._figures = FigureMemory()
+            self._context = ContextCompressor()
+        except ImportError:
+            pass
+
+    @property
+    def style(self):
+        return self._style
+
+    @property
+    def topic(self):
+        return self._topic
+
+    @property
+    def figures(self):
+        return self._figures
+
+    @property
+    def context(self):
+        return self._context
+
+    def process_section(self, content: str, heading: str = "") -> List[str]:
         self.abbreviations.scan_text(content)
-        self.citations.validate_references(content)
+        issues = self.citations.validate_references(content)
+        if self._style:
+            self._style.analyze(content)
+        if self._topic and heading:
+            self._topic.register_coverage(heading, content)
+        if issues:
+            logger.warning(f"Citation validation issues: {issues}")
+        return issues
 
     def process_plan(self, sections: List[dict]):
         for sec in sections:
             content = sec.get("content", "")
-            self.process_section(content)
+            heading = sec.get("heading", "")
+            self.process_section(content, heading=heading)
 
     def get_status(self) -> dict:
-        return {
+        status = {
             "abbreviation_count": len(self.abbreviations.all_abbreviations()),
             "citation_count": self.citations.count(),
         }
+        if self._style:
+            status["style_profile"] = self._style.get_profile()
+        if self._topic:
+            status["topic_summary"] = self._topic.get_summary()
+        if self._figures:
+            status["figure_summary"] = self._figures.get_summary()
+        return status
