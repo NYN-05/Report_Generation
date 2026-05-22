@@ -1,6 +1,9 @@
+import json
+import os
 import re
 from typing import Dict, Set, List, Optional
 from threading import Lock
+from datetime import datetime
 from src.core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -121,17 +124,24 @@ class CitationTracker:
             self._next_index = 1
 
 
-class MemoryHub:
-    """Central access point for all memory subsystems."""
+_MEMORY_HUB_VERSION = 3
 
-    def __init__(self):
+
+class MemoryHub:
+    """Central access point for all memory subsystems with versioned file persistence."""
+
+    def __init__(self, persistence_path: Optional[str] = None):
         self.abbreviations = AbbreviationTracker()
         self.citations = CitationTracker()
         self._style = None
         self._topic = None
         self._figures = None
         self._context = None
+        self._persistence_path = persistence_path
+        self._lock = Lock()
         self._init_extended()
+        if persistence_path and os.path.exists(persistence_path):
+            self.load()
 
     def _init_extended(self):
         try:
@@ -188,3 +198,68 @@ class MemoryHub:
         if self._figures:
             status["figure_summary"] = self._figures.get_summary()
         return status
+
+    def save(self, path: Optional[str] = None) -> str:
+        path = path or self._persistence_path
+        if not path:
+            path = "memory_hub_state.json"
+        data = {
+            "_version": _MEMORY_HUB_VERSION,
+            "_timestamp": datetime.now().isoformat(),
+            "abbreviations": self.abbreviations.all_abbreviations(),
+            "citations": self.citations.all_citations(),
+        }
+        if self._style:
+            data["style_profile"] = self._style.get_profile()
+        if self._figures:
+            data["figures"] = self._figures.all_figures()
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        with self._lock:
+            tmp = path + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            os.replace(tmp, path)
+        logger.info(f"MemoryHub saved to {path}")
+        return path
+
+    def load(self, path: Optional[str] = None) -> bool:
+        path = path or self._persistence_path
+        if not path or not os.path.exists(path):
+            return False
+        try:
+            with self._lock:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            version = data.pop("_version", 1)
+            data = self._migrate(version, data)
+            for abbr, defn in data.get("abbreviations", {}).items():
+                self.abbreviations.register(abbr, defn)
+            for key, text in data.get("citations", {}).items():
+                self.citations.register(key, text)
+            if self._style and "style_profile" in data:
+                sp = data["style_profile"]
+                self._style._sentence_lengths = [int(sp.get("avg_sentence_length", 20))]
+                self._style._passive_count = int(sp.get("passive_ratio", 0.5) * 100)
+                self._style._first_person_count = sp.get("first_person_count", 0)
+            if self._figures and "figures" in data:
+                for f in data["figures"]:
+                    self._figures.register_figure(
+                        f.get("description", ""), f.get("section", ""), f.get("caption", ""))
+            logger.info(f"MemoryHub loaded (v{version}) {len(data.get('abbreviations', {}))} abbr, "
+                        f"{len(data.get('citations', {}))} cites from {path}")
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to load MemoryHub state: {e}")
+            return False
+
+    @staticmethod
+    def _migrate(version: int, data: dict) -> dict:
+        if version < 2:
+            if "citations" not in data and "citation_keys" in data:
+                data["citations"] = dict(zip(data["citation_keys"], data.get("citation_texts", [])))
+            version = 2
+        if version < 3:
+            if "style_profile" in data and isinstance(data["style_profile"], dict):
+                data["style_profile"].setdefault("first_person_count", 0)
+            version = 3
+        return data

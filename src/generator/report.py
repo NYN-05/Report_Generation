@@ -63,6 +63,11 @@ class ReportGenerator(BaseGenerator):
             ch.get("content", "") for ch in chapters
         )
 
+        coherence = self._check_coherence(chapters)
+        if coherence.get("warnings"):
+            for w in coherence["warnings"]:
+                logger.warning(f"Coherence: {w}")
+
         return {
             "title": title,
             "author": author,
@@ -71,7 +76,45 @@ class ReportGenerator(BaseGenerator):
             "full_content": all_content,
             "chapter_count": len(chapters),
             "total_words": len(all_content.split()),
+            "coherence": coherence,
         }
+
+    @staticmethod
+    def _check_coherence(chapters: List[Dict]) -> Dict:
+        if len(chapters) < 2:
+            return {"passed": True, "warnings": []}
+
+        warnings = []
+        terms_by_chapter = {}
+        for ch in chapters:
+            content = ch.get("content", "")
+            words = [w.lower() for w in content.split() if len(w) > 5]
+            from collections import Counter
+            terms_by_chapter[ch.get("heading", "")] = {
+                w for w, _ in Counter(words).most_common(30)
+            }
+
+        headings = list(terms_by_chapter.keys())
+        for i in range(len(headings) - 1):
+            ch_terms = terms_by_chapter[headings[i]]
+            next_terms = terms_by_chapter[headings[i + 1]]
+            overlap = ch_terms & next_terms
+            if len(overlap) < max(len(ch_terms), 1) * 0.15:
+                warnings.append(
+                    f"Low term overlap ({len(overlap)} shared terms) between "
+                    f"'{headings[i]}' and '{headings[i+1]}'")
+
+        for ch in chapters:
+            content = ch.get("content", "")
+            heading = ch.get("heading", "")
+            heading_words = set(heading.lower().split())
+            if heading_words:
+                content_words = set(w.lower() for w in content.split() if len(w) > 3)
+                overlap = heading_words & content_words
+                if len(overlap) < max(len(heading_words) * 0.3, 1):
+                    warnings.append(f"Chapter '{heading}' content may drift from its heading")
+
+        return {"passed": len(warnings) == 0, "warnings": warnings}
 
     def generate_full_report(self, topic: str, blueprint=None,
                               title: str = "", author: str = "",

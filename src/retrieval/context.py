@@ -1,13 +1,15 @@
 """Context Assembler — retrieves, reranks, and assembles relevant context for generation.
 
 Architecture:
-    Section Query → Hybrid Search → Reranker → Dedup → Token Budget → Assembled Context
+    Retriever (injectable)  →  Dedup  →  Token Budget  →  Formatted Context
+
+The retriever is abstracted behind BaseRetriever, so any search strategy
+(hybrid, dense-only, external API) can be swapped in.
 """
 
 from typing import List, Dict, Optional
 from src.core.logger import get_logger
-from src.retrieval.search import HybridSearch
-from src.retrieval.reranker import Reranker
+from .base import BaseRetriever, HybridRetriever
 
 logger = get_logger(__name__)
 
@@ -15,51 +17,39 @@ logger = get_logger(__name__)
 class ContextAssembler:
     """Assembles relevant context chunks for section generation.
 
+    Delegates retrieval to an injectable BaseRetriever, then applies
+    deduplication, token-budget limiting, and formatting.
+
     For each section query:
-    1. Performs hybrid search (BM25 + vector)
-    2. Reranks results using CrossEncoder
-    3. Deduplicates by content hash
-    4. Applies token budget
-    5. Returns structured context
+    1. Retrieves via injected retriever
+    2. Deduplicates by content hash
+    3. Applies token budget
+    4. Returns structured context
     """
 
-    def __init__(self, vector_store=None,
-                 model_name: str = "BAAI/bge-reranker-v2-m3",
+    def __init__(self, retriever: Optional[BaseRetriever] = None,
                  top_k: int = 8,
                  max_tokens: int = 4096):
-        self._hybrid = HybridSearch(vector_store=vector_store)
-        self._reranker = Reranker(model=model_name)
+        self._retriever = retriever or HybridRetriever()
         self._top_k = top_k
         self._max_tokens = max_tokens
-        self._chunks_indexed = False
+
+    def set_retriever(self, retriever: BaseRetriever):
+        self._retriever = retriever
 
     def index_knowledge(self, chunks: List[Dict]):
-        """Index knowledge chunks for hybrid search."""
-        self._hybrid.index_chunks(chunks)
-        self._chunks_indexed = True
+        self._retriever.index_chunks(chunks)
         logger.info(f"ContextAssembler indexed {len(chunks)} knowledge chunks")
 
     def is_ready(self) -> bool:
-        return self._chunks_indexed
+        return self._retriever.is_ready()
 
     def retrieve_context(self, query: str, top_k: Optional[int] = None) -> Dict:
-        """Retrieve and assemble context for a section query.
-
-        Returns:
-            Dict with keys:
-                - chunks: List[Dict] of relevant context chunks
-                - context_text: str — formatted context for prompt injection
-                - sources: List[str] — source documents
-                - total_chunks: int
-                - avg_score: float
-        """
-        if not self._chunks_indexed:
+        if not self._retriever.is_ready():
             return self._empty_result()
 
         k = top_k or self._top_k
-
-        results = self._hybrid.search(query, n_results=k * 2)
-        results = self._reranker.rerank(query, results, top_n=k)
+        results = self._retriever.retrieve(query, k)
         results = self._deduplicate(results)
         results = self._apply_token_budget(results)
 
@@ -98,11 +88,9 @@ class ContextAssembler:
     def _apply_token_budget(self, results: List[Dict]) -> List[Dict]:
         if not results:
             return results
-
         budgeted = []
         total_chars = 0
         char_budget = self._max_tokens * 4
-
         for r in results:
             text_len = len(r.get("text", "")) + 200
             if total_chars + text_len > char_budget:
@@ -115,7 +103,6 @@ class ContextAssembler:
                 break
             budgeted.append(r)
             total_chars += text_len
-
         return budgeted
 
     def _format_context(self, results: List[Dict]) -> str:
@@ -130,20 +117,16 @@ class ContextAssembler:
             if source:
                 header_parts.append(f"Source: {source}")
             header = f"[{', '.join(header_parts)}]" if header_parts else ""
-
             text = r.get("text", "")
             parts.append(
                 f"--- Context Chunk {i + 1} (relevance: {score:.3f}) ---\n"
                 f"{header}\n{text}"
             )
-
         return "\n\n".join(parts)
 
-    def _empty_result(self) -> Dict:
+    @staticmethod
+    def _empty_result() -> Dict:
         return {
-            "chunks": [],
-            "context_text": "",
-            "sources": [],
-            "total_chunks": 0,
-            "avg_score": 0.0,
+            "chunks": [], "context_text": "", "sources": [],
+            "total_chunks": 0, "avg_score": 0.0,
         }

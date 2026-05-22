@@ -24,6 +24,7 @@ class SectionGenerator(BaseGenerator):
         if self._provider and self._provider.is_available():
             return self._generate_with_llm(context, heading, paragraph_count)
 
+        roles = ["analysis", "methodology", "evaluation", "implication"]
         paragraphs = []
         for i in range(paragraph_count):
             para_ctx = GeneratorContext(
@@ -32,7 +33,8 @@ class SectionGenerator(BaseGenerator):
             )
             from .paragraph import ParagraphGenerator
             pg = ParagraphGenerator(self._provider)
-            para = pg.generate(para_ctx, focus=heading, index=i)
+            role = roles[i % len(roles)]
+            para = pg.generate(para_ctx, focus=heading, index=i, role=role)
             paragraphs.append(para)
 
         body = "\n\n".join(paragraphs)

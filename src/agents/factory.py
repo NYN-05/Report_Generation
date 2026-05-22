@@ -77,6 +77,24 @@ class AgentFactory:
         return EditorAgent(provider=provider)
 
     @classmethod
+    def create_coordinator(cls, provider: Optional[BaseProvider] = None) -> BaseAgent:
+        """Create an AgentCoordinator with default agents injected."""
+        from .research import ResearchAgent
+        from .writing import WritingAgent
+        from .citation import CitationAgent
+        from .formatting_agent import FormattingAgent
+        from .export_agent import ExportAgent
+        from .coordinator import AgentCoordinator
+        agents = {
+            "research": ResearchAgent(provider=provider),
+            "writing": WritingAgent(provider=provider),
+            "citation": CitationAgent(provider=provider),
+            "formatting": FormattingAgent(provider=provider),
+            "export": ExportAgent(provider=provider),
+        }
+        return AgentCoordinator(agents=agents, provider=provider)
+
+    @classmethod
     def get_agent(cls, name: str) -> Optional[BaseAgent]:
         """Get an existing agent by name."""
         for agent in cls._agents.values():

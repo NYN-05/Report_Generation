@@ -61,10 +61,16 @@ class ExportAgent(BaseAgent):
                     return {"success": True, "path": output_path, "format": "docx"}
                 return {"success": False, "error": "Builder failed"}
 
-            from src.document.blueprint import BlueprintBuilder
-            b = BlueprintBuilder()
-            success = b.build(plan, output_path)
-            return {"success": success, "path": output_path, "format": "docx"}
+            try:
+                from src.document.blueprint import BlueprintBuilder
+                b = BlueprintBuilder()
+                success = b.build(plan, output_path)
+                if success:
+                    return {"success": True, "path": output_path, "format": "docx"}
+            except Exception as blueprint_err:
+                logger.warning(f"BlueprintBuilder failed, using fallback: {blueprint_err}")
+
+            return self._fallback_docx_export(plan, output_path)
 
         except Exception as e:
             logger.error(f"DOCX export failed: {e}")
@@ -73,13 +79,48 @@ class ExportAgent(BaseAgent):
     def _export_pdf(self, docx_path: str, pdf_path: str) -> Dict:
         from src.pipeline.export.pdf import PDFExportPipeline
         pipeline = PDFExportPipeline()
-        result = pipeline.execute({"document_path": docx_path, "output_path": pdf_path})
+        result = pipeline.execute(docx_path, output_path=pdf_path)
         return {
             "success": result.success,
             "path": pdf_path,
             "format": "pdf",
             "error": result.error,
         }
+
+    def _fallback_docx_export(self, plan, output_path: str) -> Dict:
+        try:
+            report_content = []
+            if hasattr(plan, "sections"):
+                for sec in plan.sections:
+                    if sec.content:
+                        report_content.append(f"# {sec.heading}\n\n{sec.content}")
+            elif isinstance(plan, dict):
+                sections = plan.get("sections", [])
+                for sec in sections:
+                    report_content.append(f"# {sec.get('heading', '')}\n\n{sec.get('content', '')}")
+
+            if report_content:
+                from docx import Document
+                from docx.shared import Inches, Pt
+                doc = Document()
+                for section in doc.sections:
+                    section.top_margin = Inches(1)
+                    section.bottom_margin = Inches(1)
+                    section.left_margin = Inches(1)
+                    section.right_margin = Inches(1)
+                for block in report_content:
+                    lines = block.split("\n")
+                    for line in lines:
+                        if line.startswith("# "):
+                            doc.add_heading(line[2:], level=1)
+                        elif line.strip():
+                            doc.add_paragraph(line)
+                os.makedirs(os.path.dirname(output_path), exist_ok=True)
+                doc.save(output_path)
+                return {"success": True, "path": output_path, "format": "docx"}
+            return {"success": False, "error": "No content to export"}
+        except Exception as e:
+            return {"success": False, "error": str(e), "format": "docx"}
 
     def export_docx(self, plan, output_path: str, builder=None) -> bool:
         result = self._export_docx(plan, output_path, builder)

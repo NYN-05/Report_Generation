@@ -23,6 +23,29 @@ from src.memory import ContextManager, ReportHistory
 logger = get_logger("main")
 
 
+def run_coordinated(topic: str, output_path: str = "output/output.docx",
+                    formats: Optional[list] = None,
+                    phases: Optional[list] = None):
+    """Run the CoordinatedPipeline with optional phase selection."""
+    logger.info(f"Coordinated pipeline for: {topic}")
+    from src.pipeline import CoordinatedPipeline
+
+    pipe = CoordinatedPipeline()
+    result = pipe.execute(
+        {"topic": topic, "output_path": output_path, "formats": formats or ["docx"]},
+        phases=phases,
+        callback=lambda phase, status: print(f"  [{status}] {phase}"),
+    )
+    if result.success:
+        print(f"\n[OK] Pipeline complete in {result.execution_time:.2f}s")
+        print(f"     Output: {result.output_path}")
+        phases_done = result.data.get("phases_completed", [])
+        print(f"     Phases: {', '.join(phases_done)}")
+    else:
+        print(f"\n[ERROR] {result.error}")
+    return result.success
+
+
 def run_with_topic(topic: str, rules_path: Optional[str] = None,
                    use_llm: bool = False,
                    knowledge_dir: Optional[str] = None,
@@ -189,6 +212,34 @@ def main():
         action='store_true',
         help='Skip the multi-pass review pipeline'
     )
+
+    # Coordinated pipeline flags
+    parser.add_argument(
+        '--coordinated',
+        action='store_true',
+        help='Use the CoordinatedPipeline (wires all agents & generators)'
+    )
+
+    parser.add_argument(
+        '--phases',
+        metavar='PHASES',
+        help='Comma-separated phases for CoordinatedPipeline: '
+             'plan,research,generate,review,validate,assemble_doc,export'
+    )
+
+    parser.add_argument(
+        '--output',
+        metavar='FILE',
+        default='output/output.docx',
+        help='Output file path (default: output/output.docx)'
+    )
+
+    parser.add_argument(
+        '--format',
+        metavar='FMT',
+        default='docx',
+        help='Export format(s): docx, pdf (default: docx)'
+    )
     
     args = parser.parse_args()
     
@@ -214,13 +265,22 @@ def main():
         return
     
     if args.topic:
-        run_with_topic(args.topic, rules_path=args.rules, use_llm=args.use_llm,
-                       knowledge_dir=args.knowledge_dir,
-                       skip_review=args.skip_review)
+        if args.coordinated:
+            run_coordinated(
+                topic=args.topic,
+                output_path=args.output,
+                formats=args.format.split(","),
+                phases=args.phases.split(",") if args.phases else None,
+            )
+        else:
+            run_with_topic(args.topic, rules_path=args.rules, use_llm=args.use_llm,
+                           knowledge_dir=args.knowledge_dir,
+                           skip_review=args.skip_review)
     else:
         parser.print_help()
         print("\nExample:")
         print("  python -m src.main \"Climate Change Impact on Agriculture\"")
+        print("  python -m src.main \"Quantum Computing\" --coordinated --phases plan,generate,export")
 
 
 if __name__ == "__main__":
