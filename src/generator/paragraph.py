@@ -57,7 +57,7 @@ _IMPLICATION_TEMPLATES = [
 
 
 class ParagraphGenerator(BaseGenerator):
-    """Generates individual paragraphs with substantive, role-aware templates."""
+    """Generates individual paragraphs with substantive, role-aware content."""
 
     def __init__(self, provider=None):
         super().__init__("paragraph")
@@ -67,6 +67,10 @@ class ParagraphGenerator(BaseGenerator):
         focus = kwargs.get("focus", context.topic)
         index = kwargs.get("index", 0)
         role = kwargs.get("role", "analysis")
+
+        if self._provider and self._provider.is_available():
+            return self._generate_with_llm(context, focus, role)
+
         templates = self._pick_templates(role)
         template = templates[index % len(templates)]
         paragraph = template.format(topic=context.topic, focus=focus)
@@ -77,6 +81,32 @@ class ParagraphGenerator(BaseGenerator):
                 paragraph += f" {evidence}"
 
         return paragraph
+
+    def _generate_with_llm(self, context: GeneratorContext, focus: str,
+                            role: str) -> str:
+        from src.providers import Message, CompletionOptions
+        try:
+            prompt = (
+                f"Write one formal academic paragraph about '{focus}' in the context of "
+                f"{context.topic}. The paragraph should focus on the {role} aspect: "
+                f"examine evidence, identify key patterns, or discuss implications.\n\n"
+                f"Write 3-6 substantive sentences with specific claims, not generic filler."
+            )
+            if context.retrieval_context:
+                prompt += f"\n\nReference Material:\n{context.retrieval_context[:2000]}"
+
+            messages = [
+                Message(role="system", content="You are an academic report writer."),
+                Message(role="user", content=prompt),
+            ]
+            opts = CompletionOptions(temperature=0.7, max_tokens=512, timeout=60)
+            response = self._provider.chat(messages, options=opts)
+            return response.content.strip()
+        except Exception as e:
+            logger.warning(f"LLM paragraph generation failed: {e}")
+            templates = self._pick_templates(role)
+            template = templates[0]
+            return template.format(topic=context.topic, focus=focus)
 
     @staticmethod
     def _pick_templates(role: str) -> List[str]:

@@ -25,12 +25,20 @@ logger = get_logger("main")
 
 def run_coordinated(topic: str, output_path: str = "output/output.docx",
                     formats: Optional[list] = None,
-                    phases: Optional[list] = None):
+                    phases: Optional[list] = None,
+                    use_provider: bool = True):
     """Run the CoordinatedPipeline with optional phase selection."""
     logger.info(f"Coordinated pipeline for: {topic}")
     from src.pipeline import CoordinatedPipeline
     from src.generator import ReportGenerator
     from src.memory import MemoryHub
+    from src.providers.factory import get_default_provider
+
+    provider = get_default_provider() if use_provider else None
+    if provider:
+        logger.info(f"Using provider: {provider.__class__.__name__} ({provider.model})")
+    else:
+        logger.warning("No LLM provider available — using template fallback")
 
     pipe = CoordinatedPipeline()
     result = pipe.execute(
@@ -38,8 +46,9 @@ def run_coordinated(topic: str, output_path: str = "output/output.docx",
         phases=phases,
         callback=lambda phase, status: print(f"  [{status}] {phase}"),
         components={
-            "report_generator": ReportGenerator(),
+            "report_generator": ReportGenerator(provider=provider),
             "memory_hub": MemoryHub(),
+            "context_assembler": None,
         },
     )
     if result.success:

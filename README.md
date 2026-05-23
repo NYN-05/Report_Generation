@@ -1,14 +1,17 @@
 # AI-Powered Report Generator
 
-A production-grade system for generating professional Word documents and PDFs with dynamic skill-based LLM orchestration, RAG retrieval, and multi-agent coordination.
+A production-grade system for generating professional Word documents and PDFs with dynamic skill-based LLM orchestration, RAG retrieval, multi-agent coordination, and an event-driven pipeline architecture.
 
 ## Features
 
-- **Agent System** — 6 domain agents (Research, Writing, Citation, Formatting, Export) coordinated by `AgentCoordinator`
-- **Hierarchical Generators** — `ReportGenerator` → `ChapterGenerator` → `SectionGenerator` → `SubsectionGenerator` → `ParagraphGenerator`
+- **Agent System** — 6 domain agents (Research, Writing, Citation, Formatting, Export) injected into `AgentCoordinator` with zero hardcoded imports
+- **Hierarchical Generators** — `ReportGenerator` → `ChapterGenerator` → `SectionGenerator` → `SubsectionGenerator` → `ParagraphGenerator` with role-cycled content (analysis, methodology, evaluation, implication)
+- **Abstract Retriever Interface** — `BaseRetriever` with `HybridRetriever` and `DummyRetriever` implementations; swap retrieval strategies without touching `ContextAssembler`
 - **RAG Pipeline** — Hybrid search (BM25 + vector) + CrossEncoder reranking + dedup + token budget
 - **Review Pipeline** — 5 checkers (coherence, style, citations, redundancy, formatting)
-- **Memory System** — 5 memory types (Abbreviation, Citation, Style, Topic, Figure) with file persistence
+- **Memory System** — 5 memory types (Abbreviation, Citation, Style, Topic, Figure) with versioned file persistence, atomic writes, and thread-safety
+- **Event Bus** — Pub-sub lifecycle events (`phase.started`, `.completed`, `.failed`) instead of ad-hoc callbacks
+- **Error Classification** — `RecoverableError` (skip phase, continue) vs `PhaseError` (halt pipeline)
 - **Document State** — `DocumentState` as single source of truth; `Workspace` separates doc/conversation state
 - **Blueprint System** — Templates for Engineering Project Reports, Research Papers, Internship Reports
 - **Prompt System** — 8 Jinja2 templates with `PromptBuilder`
@@ -24,77 +27,104 @@ A production-grade system for generating professional Word documents and PDFs wi
 report_generation/
 ├── src/
 │   ├── main.py                  # Entry point with CLI
-│   ├── agents/                  # AI agents
+│   │
+│   ├── agents/                  # AI agents (no hardcoded imports)
 │   │   ├── base.py              # BaseAgent, AgentResponse
-│   │   ├── coordinator.py       # AgentCoordinator (orchestrates 6 agents)
+│   │   ├── coordinator.py       # AgentCoordinator (pure container, DI-based)
 │   │   ├── research.py          # RAG-based evidence retrieval
 │   │   ├── writing.py           # Content generation with PromptBuilder
 │   │   ├── citation.py          # Citation validation
 │   │   ├── formatting_agent.py  # IEEE formatting compliance
-│   │   ├── export_agent.py      # DOCX/PDF export
-│   │   └── planner.py           # Blueprint-based structure planning
+│   │   ├── export_agent.py      # DOCX/PDF export with fallback
+│   │   ├── planner.py           # Blueprint-based structure planning
+│   │   └── factory.py           # AgentFactory (DI convenience)
+│   │
 │   ├── pipeline/                # Execution pipelines
-│   │   ├── coordinated.py       # CoordinatedPipeline (full e2e)
+│   │   ├── coordinated.py       # CoordinatedPipeline (full e2e, 7 phases)
 │   │   ├── generation/          # ScratchPipeline, TemplatePipeline
 │   │   └── export/              # PDFExportPipeline, ExportFactory
+│   │
 │   ├── generator/               # Hierarchical content generators
 │   │   ├── report.py            # Report → Chapter → Section → Subsection → Paragraph
 │   │   ├── chapter.py
 │   │   ├── section.py
 │   │   ├── subsection.py
-│   │   └── paragraph.py
-│   ├── retrieval/               # RAG retrieval
-│   │   ├── search.py            # HybridSearch (BM25 + vector)
-│   │   ├── reranker.py          # CrossEncoder reranking
-│   │   └── context.py           # ContextAssembler
+│   │   └── paragraph.py         # Role-cycled templates (analysis/methodology/evaluation/implication)
+│   │
+│   ├── retrieval/               # RAG retrieval (abstract interface)
+│   │   ├── base.py              # BaseRetriever, HybridRetriever, DummyRetriever
+│   │   ├── search.py            # HybridSearch (BM25 + vector, RRF fusion)
+│   │   ├── reranker.py          # CrossEncoder reranking with fallback
+│   │   └── context.py           # ContextAssembler (accepts any BaseRetriever)
+│   │
 │   ├── memory/                  # Memory systems
-│   │   ├── tracking.py          # MemoryHub, AbbreviationTracker, CitationTracker
+│   │   ├── tracking.py          # MemoryHub (versioned persistence, thread-safe)
 │   │   ├── extended.py          # StyleMemory, TopicMemory, FigureMemory, ContextCompressor
 │   │   ├── context.py           # ContextManager, ConversationContext
 │   │   └── history.py           # ReportHistory
+│   │
 │   ├── core/
 │   │   ├── state.py             # DocumentState, ConversationState, Workspace
+│   │   ├── events.py            # EventBus (pub-sub lifecycle events)
+│   │   ├── errors.py            # RecoverableError, PhaseError
 │   │   ├── config.py            # Dependency checks & global config
 │   │   └── logger.py            # Structured logging
+│   │
 │   ├── review/                  # Review pipeline
 │   │   └── pipeline.py          # ReviewPipeline (5 checkers)
+│   │
 │   ├── prompts/                 # Jinja2 templates
 │   │   └── builder.py           # PromptBuilder
+│   │
 │   ├── document/                # Document analysis & building
 │   │   ├── builder.py           # BlueprintBuilder
 │   │   └── analyzer/            # DOCX analyzer (styles, headings, tables, images, etc.)
+│   │
 │   └── skills/                  # Dynamic skill system
-├── tests/                       # 342+ pytest tests
-│   ├── test_integration_pipeline.py
+│
+├── tests/                       # 354+ pytest tests
+│   ├── test_integration_pipeline.py  # Pipeline, generators, agents, persistence
 │   ├── test_state_and_memory.py
 │   ├── test_rag_retrieval.py
 │   └── ...
+│
 └── skills/                      # External skill definitions
 ```
 
-## Installation
+## Quick Start
 
 ```bash
-pip install python-docx docx2pdf
+pip install python-docx
+```
+
+```bash
+# Generate a report
+python -m src.main "Human Impulsive Behaviour" --coordinated --output output/report.docx
+
+# With specific phases
+python -m src.main "Quantum Computing" --coordinated --phases plan,generate,export
+
+# As PDF
+python -m src.main "Data Science" --coordinated --format pdf
 ```
 
 ## Usage
 
 ```bash
-# Legacy pipeline
-python -m src.main "Climate Change Impact on Agriculture"
+# Coordinated pipeline (full e2e — recommended)
+python -m src.main "Your Topic" --coordinated
 
-# Coordinated pipeline (full e2e with all agents)
-python -m src.main "Quantum Computing" --coordinated
+# Legacy pipeline
+python -m src.main "Your Topic"
 
 # Select specific phases
 python -m src.main "Machine Learning" --coordinated --phases plan,generate,export
 
-# Export to specific format
-python -m src.main "Data Science" --coordinated --format pdf
+# Export format
+python -m src.main "Cybersecurity" --coordinated --format pdf
 
 # Custom output path
-python -m src.main "Cybersecurity" --coordinated --output reports/cyber.docx
+python -m src.main "AI Ethics" --coordinated --output reports/ethics.docx
 
 # Show system status
 python -m src.main --status
@@ -112,85 +142,117 @@ python -m src.main --list-skills
 | `--list-skills` | List available skills |
 | `--explain TASK` | Explain skill selection |
 | `--rules FILE` | Custom rules JSON/MD |
-| `--use-llm` | Use LLM for planning |
+| `--use-llm` | Use LLM for planning (Ollama) |
 | `--knowledge-dir DIR` | RAG reference documents |
 | `--skip-review` | Skip review pipeline |
 | `--coordinated` | Use CoordinatedPipeline |
-| `--phases PHASES` | Comma-separated phases |
-| `--output FILE` | Output file path |
-| `--format FMT` | Export format (docx/pdf) |
+| `--phases PHASES` | Comma-separated: plan,research,generate,review,validate,assemble_doc,export |
+| `--output FILE` | Output file path (default: output/output.docx) |
+| `--format FMT` | Export format: docx, pdf (default: docx) |
 
 ## Architecture
 
-### Pipeline Flow (CoordinatedPipeline)
+### Pipeline Flow
 
 ```
-Plan → Research → Generate → Review → Validate → Assemble → Export
- │        │           │          │         │          │         │
-Blueprint  RAG       Agents/    5       Memory     Document   DOCX/
-                    Generators Checkers  Save      State      PDF
+CoordinatedPipeline (single orchestrator)
+│
+├── plan          → Blueprint / DocumentState
+├── research      → ContextAssembler / BaseRetriever
+├── generate      → ReportGenerator (hierarchical) or AgentCoordinator
+├── review        → ReviewPipeline (5 checkers)
+├── validate      → MemoryHub persistence
+├── assemble_doc  → DocumentState sync
+└── export        → ExportAgent (DOCX → PDF)
 ```
 
-### Agent System (AgentCoordinator)
+Each phase emits typed events (`phase.started`, `.completed`, `.failed`) to the `EventBus`. Recoverable failures skip the phase; fatal failures halt the pipeline.
+
+### Agent System (DI-based)
 
 ```
-AgentCoordinator
-├── ResearchAgent    → ContextAssembler (HybridSearch → Reranker → Dedup)
-├── WritingAgent     → PromptBuilder (Jinja2 templates)
-├── CitationAgent    → Validates citation patterns
-├── FormattingAgent  → IEEE compliance checks
-└── ExportAgent      → DOCX generator + PDF converter
+AgentFactory.create_coordinator()
+  └── AgentCoordinator (pure container, no hardcoded imports)
+       ├── ResearchAgent    → ContextAssembler → BaseRetriever
+       ├── WritingAgent     → PromptBuilder → Jinja2 templates
+       ├── CitationAgent    → Citation validation
+       ├── FormattingAgent  → IEEE compliance
+       └── ExportAgent      → DOCX + PDF with fallback
+```
+
+Agents are injected via constructor `agents=dict` or `register_agent()`. No concrete classes are imported by the coordinator.
+
+### Retrieval Architecture
+
+```
+BaseRetriever (abstract interface)
+├── HybridRetriever   → HybridSearch → CrossEncoder Reranker
+├── DummyRetriever    → No-op (testing)
+└── [Custom]          → Implement retrieve() + index_chunks()
+
+ContextAssembler
+  └── accepts any BaseRetriever via set_retriever()
+  └── dedup → token budget → format
 ```
 
 ### Memory Architecture
 
 ```
-MemoryHub (with file persistence)
-├── AbbreviationTracker  → Scans text for "Abbr (Definition)" patterns
-├── CitationTracker      → Validates [1], [2-4] reference patterns
-├── StyleMemory          → Tracks sentence length, passive voice, terminology
-├── TopicMemory          → Prevents topic drift across sections
-├── FigureMemory         → Deduplicates figures and captions
-└── ContextCompressor    → Chapter summaries for context injection
+MemoryHub (versioned JSON persistence, thread-safe)
+├── AbbreviationTracker  → "Definition (Abbr)" patterns
+├── CitationTracker      → [1], [2-4] reference validation
+├── StyleMemory          → Sentence length, passive voice, terminology
+├── TopicMemory          → Topic drift prevention
+├── FigureMemory         → Figure deduplication
+└── ContextCompressor    → Chapter summaries
+
+Persistence:
+  save() → atomic write via os.replace(tmp, path) under Lock
+  load() → version migration (v1→v2→v3)
 ```
 
 ### Hierarchical Generators
 
 ```
-ReportGenerator
-└── ChapterGenerator (level 1)
-    └── SectionGenerator (level 2)
-        └── SubsectionGenerator (level 3+)
-            └── ParagraphGenerator (atomic unit)
+ReportGenerator  ─── topic → "Foundations of ...", "Mechanisms of ...", ...
+  └── ChapterGenerator
+       └── SectionGenerator  ─── roles: analysis, methodology, evaluation, implication
+            └── SubsectionGenerator
+                 └── ParagraphGenerator  ─── 4 template groups
 ```
 
-Each layer receives `GeneratorContext` with:
-- Topic and report type
-- Document state (`DocumentState`)
-- Retrieval context (from `ContextAssembler`)
-- Style profile (from `StyleMemory`)
-- Chapter summaries (for cross-chapter coherence)
+Each layer receives `GeneratorContext` with topic, retrieval context, style profile, and chapter summaries for cross-chapter coherence.
+
+### Error Handling
+
+```
+RecoverableError  → phase skipped, pipeline continues
+PhaseError        → pipeline halts immediately
+```
+
+Import in phase implementations to distinguish expected skips from real failures.
 
 ## Testing
 
 ```bash
-# Run all tests
+# Run all 354 tests
 pytest tests/
 
-# Run specific test file
+# Specific test file
 pytest tests/test_integration_pipeline.py -v
 
-# Run with coverage
+# With coverage
 pytest tests/ --cov=src
 ```
 
 ## Requirements
 
-- Python 3.10+
-- python-docx
-- docx2pdf (optional, for PDF conversion)
-- win32com (Windows, optional for PDF conversion)
-- sentence-transformers (optional, for CrossEncoder reranking)
-- rank-bm25 (optional, for BM25 search)
-- Jinja2 (optional, for prompt templates)
-- Ollama (optional, for local LLM inference)
+| Package | Required | Purpose |
+|---------|----------|---------|
+| python-docx | Yes | DOCX generation |
+| docx2pdf | No | PDF conversion |
+| win32com | No (Windows) | PDF conversion via Word |
+| sentence-transformers | No | CrossEncoder reranking |
+| rank-bm25 | No | BM25 search |
+| Jinja2 | No | Prompt templates |
+| Ollama | No | Local LLM inference |
