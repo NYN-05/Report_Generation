@@ -30,7 +30,7 @@ def run_coordinated(topic: str, output_path: str = "output/output.docx",
     """Run the CoordinatedPipeline with optional phase selection."""
     logger.info(f"Coordinated pipeline for: {topic}")
     from src.pipeline import CoordinatedPipeline
-    from src.generator import ReportGenerator
+    from src.generator import ReportGenerator, EvidenceBasedSectionGenerator
     from src.memory import MemoryHub
     from src.providers.factory import get_default_provider
 
@@ -38,7 +38,39 @@ def run_coordinated(topic: str, output_path: str = "output/output.docx",
     if provider:
         logger.info(f"Using provider: {provider.__class__.__name__} ({provider.model})")
     else:
-        logger.warning("No LLM provider available — using template fallback")
+        logger.warning("No LLM provider available — evidence-based mode still active")
+
+    context_assembler = None
+    try:
+        from src.retrieval.context import ContextAssembler
+        from src.retrieval.base import HybridRetriever
+        from src.ingestion.pipeline import IngestionPipeline
+        import os
+        knowledge_dir = os.path.join(os.path.dirname(__file__), "..", "knowledge")
+        if os.path.isdir(knowledge_dir):
+            ingest = IngestionPipeline()
+            ingest.ingest_directory(knowledge_dir)
+            chunks = ingest.get_chunks()
+            if chunks:
+                retriever = HybridRetriever(
+                    vector_store=ingest.store if ingest.store.is_available() else None
+                )
+                retriever.index_chunks(chunks)
+                context_assembler = ContextAssembler(retriever=retriever)
+                context_assembler.index_knowledge(chunks)
+                logger.info(
+                    f"ContextAssembler ready with {len(chunks)} knowledge chunks "
+                    f"from '{knowledge_dir}'"
+                )
+        else:
+            logger.warning("No knowledge directory found at 'knowledge/'")
+    except Exception as e:
+        logger.warning(f"Context assembler init skipped: {e}")
+
+    report_generator = ReportGenerator(
+        provider=provider,
+        context_assembler=context_assembler,
+    )
 
     pipe = CoordinatedPipeline()
     result = pipe.execute(
@@ -46,9 +78,9 @@ def run_coordinated(topic: str, output_path: str = "output/output.docx",
         phases=phases,
         callback=lambda phase, status: print(f"  [{status}] {phase}"),
         components={
-            "report_generator": ReportGenerator(provider=provider),
+            "report_generator": report_generator,
             "memory_hub": MemoryHub(),
-            "context_assembler": None,
+            "context_assembler": context_assembler,
         },
     )
     if result.success:

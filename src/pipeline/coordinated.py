@@ -200,18 +200,30 @@ class CoordinatedPipeline(BasePipeline):
 
     def _run_generate(self, ctx: PipelineContext) -> bool:
         if ctx.report_generator:
-            from src.generator.report import ReportGenerator
-            gen = ctx.report_generator if isinstance(ctx.report_generator, ReportGenerator) else ReportGenerator()
+            from src.generator import ReportGenerator
+            gen = ctx.report_generator if isinstance(ctx.report_generator, ReportGenerator) else ReportGenerator(
+                context_assembler=ctx.context_assembler,
+            )
             result = gen.generate_full_report(
                 topic=ctx.topic, blueprint=ctx.blueprint,
                 context_assembler=ctx.context_assembler,
                 document_state=ctx.document_state,
             )
             ctx.metadata["report"] = result
-            self.logger.info(f"Generated: {result.get('chapter_count', 0)} chapters, "
-                          f"{result.get('total_words', 0)} words")
-            if ctx.memory_hub and hasattr(ctx.memory_hub, "process_section"):
-                ctx.memory_hub.process_section(result.get("full_content", ""), "report")
+            sections = result.get("section_contents", [])
+            self.logger.info(
+                f"Generated: {result.get('section_count', 0)} sections, "
+                f"{result.get('total_words', 0)} words, "
+                f"validations passed: {result.get('all_validations_passed', False)}"
+            )
+            validation_issues = []
+            for name, vr in result.get("validations", {}).items():
+                if not vr.get("passed"):
+                    for issue in vr.get("issues", []):
+                        validation_issues.append(f"{name}: {issue}")
+                        ctx.errors.append(f"validation.{name}: {issue}")
+            if validation_issues:
+                self.logger.warning(f"Validation issues: {len(validation_issues)}")
             return True
 
         if ctx.agent_coordinator and ctx.plan:
@@ -258,6 +270,25 @@ class CoordinatedPipeline(BasePipeline):
 
     def _run_assemble_doc(self, ctx: PipelineContext) -> bool:
         self._ensure_document_state(ctx)
+        report = ctx.metadata.get("report", {})
+        section_contents = report.get("section_contents", [])
+        if section_contents:
+            try:
+                from src.document.docx_v2_generator import DOCXV2Generator
+                docx_gen = DOCXV2Generator()
+                output = docx_gen.generate(
+                    title=report.get("title", ctx.topic),
+                    author=report.get("author", ""),
+                    sections=section_contents,
+                    output_path=ctx.output_path,
+                )
+                ctx.output_path = output
+                self.logger.info(f"DOCX assembled: {output}")
+            except Exception as e:
+                self.logger.warning(f"DOCX assembly via v2 failed: {e}, falling back")
+                self._ensure_document_state(ctx)
+        else:
+            self._ensure_document_state(ctx)
         self.logger.info("Document state assembled")
         return True
 

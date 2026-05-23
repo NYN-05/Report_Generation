@@ -4,6 +4,7 @@ Document Module
 Document generation and manipulation.
 """
 
+from .docx_v2_generator import DOCXV2Generator
 from .base import BaseDocument, DocumentMetadata
 from .builder import DocumentBuilder
 from .parser import DocumentParser
@@ -34,6 +35,7 @@ from .rules import (
 )
 
 __all__ = [
+    "DOCXV2Generator",
     "BaseDocument",
     "DocumentMetadata",
     "DocumentBuilder",
