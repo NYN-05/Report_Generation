@@ -146,12 +146,14 @@ def demo(topic: str, output_path: str = "output/full_report.docx", enable_web: b
     print(f"  Output:     {result.output_path}")
 
     report = result.data.get("report", {}) if result.data else {}
+    quality = report.get("quality_gate", {}) if report else {}
+    pdf_path = str(output_path).replace(".docx", ".pdf")
+
     if report:
         print(f"  Sections:   {report.get('section_count', '?')}")
         print(f"  Words:      {report.get('total_words', '?')}")
         print(f"  Facts:      {report.get('total_facts', '?')}")
 
-        quality = report.get("quality_gate", {})
         if quality:
             passed = quality.get("all_passed", False)
             weak = quality.get("weak_sections", [])
@@ -159,8 +161,6 @@ def demo(topic: str, output_path: str = "output/full_report.docx", enable_web: b
             for ws in weak:
                 print(f"               - {ws['section']}: {ws['overall']}/10")
 
-        # Check for auto-generated PDF
-        pdf_path = str(output_path).replace(".docx", ".pdf")
         if os.path.exists(pdf_path):
             pdf_size = os.path.getsize(pdf_path) / 1024
             print(f"  PDF:        ✓ {pdf_path} ({pdf_size:.0f} KB)")
@@ -181,7 +181,7 @@ def demo(topic: str, output_path: str = "output/full_report.docx", enable_web: b
         ("Content type classification", report.get("results", [{}])[0].get("metadata", {}).get("classified_blocks") is not None if report.get("results") else False),
         ("Quality gate (all sections scored)", bool(quality)),
         ("Centralized StyleManager formatting", True),
-        ("Auto PDF conversion", os.path.exists(pdf_path) if 'pdf_path' in dir() else False),
+        ("Auto PDF conversion", os.path.exists(pdf_path)),
         ("Web search integration", web_retriever is not None and web_retriever.is_ready()),
     ]
     for name, ok in checks:
