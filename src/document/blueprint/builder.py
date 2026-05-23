@@ -11,6 +11,7 @@ from docx.oxml.ns import qn
 from .models import ReportPlan, PlanSection
 from src.document.builder import DocumentBuilder
 from src.core.logger import get_logger
+from src.document.styles import StyleManager
 
 logger = get_logger(__name__)
 
@@ -19,8 +20,8 @@ class BlueprintBuilder:
     """Generates DOCX documents from a ReportPlan."""
 
     def __init__(self):
-        self._builder: Optional[DocumentBuilder] = None
         self._doc: Optional[Document] = None
+        self._styles = StyleManager.get_instance()
 
     def build(self, plan: ReportPlan, output_path: str = "output.docx") -> bool:
         builder = DocumentBuilder()
@@ -83,28 +84,20 @@ class BlueprintBuilder:
         return True
 
     def _add_cover_page(self, plan: ReportPlan):
-        section = self._doc.sections[0]
-        section.top_margin = Inches(1)
-        section.bottom_margin = Inches(1)
-        section.left_margin = Inches(1)
-        section.right_margin = Inches(1)
+        self._styles.setup_document(self._doc)
 
         for _ in range(6):
             self._doc.add_paragraph()
 
-        title_para = self._doc.add_paragraph()
-        title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run = title_para.add_run(plan.title)
-        run.font.size = Pt(28)
-        run.font.bold = True
-        run.font.color.rgb = RGBColor(0, 51, 102)
+        s = self._styles.get_styles()
+        title_p = self._doc.add_paragraph()
+        title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        self._styles.write_run(title_p, plan.title, s.cover_page.title_font)
 
         if plan.subtitle:
-            sub_para = self._doc.add_paragraph()
-            sub_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            run = sub_para.add_run(plan.subtitle)
-            run.font.size = Pt(16)
-            run.font.color.rgb = RGBColor(100, 100, 100)
+            sub_p = self._doc.add_paragraph()
+            sub_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            self._styles.write_run(sub_p, plan.subtitle, s.cover_page.subtitle_font)
 
         self._doc.add_paragraph()
 
@@ -114,11 +107,9 @@ class BlueprintBuilder:
         if plan.date:
             info_lines.append(f"Date: {plan.date}")
         if info_lines:
-            info_para = self._doc.add_paragraph()
-            info_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            run = info_para.add_run("\n".join(info_lines))
-            run.font.size = Pt(12)
-            run.font.color.rgb = RGBColor(80, 80, 80)
+            info_p = self._doc.add_paragraph()
+            info_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            self._styles.write_run(info_p, "\n".join(info_lines), s.cover_page.author_font)
 
         self._doc.add_page_break()
 
@@ -221,9 +212,12 @@ class BlueprintBuilder:
     def _add_references(self, section: PlanSection, plan: ReportPlan):
         self._doc.add_page_break()
         self._doc.add_heading("References", level=1)
+        s = self._styles.get_styles()
         for ref in plan.references:
             p = self._doc.add_paragraph(ref)
-            p.paragraph_format.space_after = Pt(6)
+            self._styles.apply_paragraph_style(p, s.reference)
+            p.paragraph_format.first_line_indent = Inches(-s.reference.hanging_indent)
+            p.paragraph_format.left_indent = Inches(s.reference.hanging_indent)
 
     def _add_appendix(self, section: PlanSection):
         self._doc.add_page_break()

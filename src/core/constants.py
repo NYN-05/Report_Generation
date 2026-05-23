@@ -48,8 +48,9 @@ class SkillMatchThreshold:
     DEFAULT = 0.5
 
 
+# Legacy defaults — use StyleManager for authoritative values
 DEFAULT_PAGE_MARGIN = 1440
-DEFAULT_FONT_NAME = "Calibri"
+DEFAULT_FONT_NAME = "Times New Roman"
 DEFAULT_FONT_SIZE = 12
 
 SUPPORTED_IMAGE_TYPES = ["png", "jpg", "jpeg", "gif", "bmp", "svg"]

@@ -10,6 +10,7 @@ from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.oxml.ns import qn
 
 from src.core.logger import get_logger
+from src.document.styles import StyleManager
 
 logger = get_logger(__name__)
 
@@ -41,11 +42,13 @@ class TableFormatter:
     @staticmethod
     def format_header_row(row):
         """Format header row with bold and background."""
+        s = StyleManager.get_instance().get_styles()
+        font_size = s.table.header_font.size
         for cell in row.cells:
             for para in cell.paragraphs:
                 for run in para.runs:
                     run.font.bold = True
-                    run.font.size = Pt(11)
+                    run.font.size = Pt(font_size)
 
             tc = cell._element
             tc_pr = tc.find(qn('w:tcPr'))
@@ -60,13 +63,14 @@ class TableFormatter:
                 shd.set(qn('w:fill'), 'D9D9D9')
 
     @staticmethod
-    def format_cell(cell, bold: bool = False, font_size: int = 11):
+    def format_cell(cell, bold: bool = False, font_size: int = None):
         """Format table cell."""
+        s = StyleManager.get_instance().get_styles()
+        fs = font_size or s.table.cell_font.size
         for para in cell.paragraphs:
             for run in para.runs:
                 run.font.bold = bold
-                if font_size:
-                    run.font.size = Pt(font_size)
+                run.font.size = Pt(fs)
 
     @staticmethod
     def apply_borders(table, color: RGBColor = None):

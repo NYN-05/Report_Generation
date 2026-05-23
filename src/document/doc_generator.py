@@ -69,7 +69,7 @@ def generate_document(content: dict = None, output_path: str = OUTPUT_DOCX) -> b
         # Cover page
         title_para = doc.add_paragraph()
         title_run = title_para.add_run(title)
-        set_font(title_run, 'Calibri', Pt(28), RGBColor(0, 51, 102), True)
+        set_font(title_run, 'Times New Roman', Pt(28), RGBColor(0, 51, 51), True)
         title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         
         subtitle_para = doc.add_paragraph()

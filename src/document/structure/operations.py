@@ -16,6 +16,7 @@ from .model import (
 from .locator import SectionLocator
 from src.document.formatter.font import FontFormatter
 from src.document.formatter.paragraph import ParagraphFormatter
+from src.document.styles import StyleManager
 from src.core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -75,6 +76,8 @@ def _copy_pPr_from_source(source_p_xml: OxmlElement,
 
 def _make_heading_xml(text: str, level: int = 1,
                        source_heading_xml: OxmlElement = None) -> OxmlElement:
+    s = StyleManager.get_instance().get_styles()
+    h = s.get_heading(level)
     p = OxmlElement('w:p')
     pPr = OxmlElement('w:pPr')
     pStyle = OxmlElement('w:pStyle')
@@ -82,8 +85,8 @@ def _make_heading_xml(text: str, level: int = 1,
     pPr.append(pStyle)
     p.insert(0, pPr)
     rPr = FontFormatter.format_run_xml(
-        font_name="Calibri",
-        font_size=max(12, 16 - level * 2),
+        font_name=h.font.name,
+        font_size=int(h.font.size),
         bold=True,
     )
     r = OxmlElement('w:r')

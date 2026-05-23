@@ -8,6 +8,7 @@ import os
 from typing import Any, Dict, Optional
 from .base import BaseAgent, AgentResponse
 from src.core.logger import get_logger
+from src.document.styles import StyleManager
 
 logger = get_logger(__name__)
 
@@ -102,19 +103,19 @@ class ExportAgent(BaseAgent):
             if report_content:
                 from docx import Document
                 from docx.shared import Inches, Pt
+                from docx.enum.text import WD_ALIGN_PARAGRAPH
                 doc = Document()
-                for section in doc.sections:
-                    section.top_margin = Inches(1)
-                    section.bottom_margin = Inches(1)
-                    section.left_margin = Inches(1)
-                    section.right_margin = Inches(1)
+                style_mgr = StyleManager.get_instance()
+                style_mgr.setup_document(doc)
+                s = style_mgr.get_styles()
                 for block in report_content:
                     lines = block.split("\n")
                     for line in lines:
                         if line.startswith("# "):
                             doc.add_heading(line[2:], level=1)
                         elif line.strip():
-                            doc.add_paragraph(line)
+                            p = doc.add_paragraph(line)
+                            style_mgr.apply_paragraph_style(p, s.content)
                 os.makedirs(os.path.dirname(output_path), exist_ok=True)
                 doc.save(output_path)
                 return {"success": True, "path": output_path, "format": "docx"}

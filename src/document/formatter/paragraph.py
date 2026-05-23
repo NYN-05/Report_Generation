@@ -13,6 +13,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 
 from src.core.logger import get_logger
+from src.document.styles import StyleManager
 
 logger = get_logger(__name__)
 
@@ -65,20 +66,22 @@ class ParagraphFormatter:
     @staticmethod
     def format_heading(paragraph: Paragraph, level: int = 1):
         """Format heading paragraph."""
-        spaces_before = {1: 12, 2: 6, 3: 3}
+        s = StyleManager.get_instance().get_styles()
+        h = s.get_heading(level)
         ParagraphFormatter.format(
             paragraph,
-            space_before=spaces_before.get(level, 6),
-            space_after=6
+            space_before=h.space_before,
+            space_after=h.space_after
         )
 
     @staticmethod
     def format_body(paragraph: Paragraph):
         """Format body paragraph."""
+        s = StyleManager.get_instance().get_styles()
         ParagraphFormatter.format(
             paragraph,
-            space_after=6,
-            line_spacing=1.15
+            space_after=s.content.space_after,
+            line_spacing=s.content.line_spacing
         )
 
     @staticmethod

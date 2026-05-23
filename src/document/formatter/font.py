@@ -12,6 +12,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 
 from src.core.logger import get_logger
+from src.document.styles import StyleManager
 
 logger = get_logger(__name__)
 
@@ -19,8 +20,13 @@ logger = get_logger(__name__)
 class FontFormatter:
     """Formats font properties for text runs."""
 
-    DEFAULT_FONT = "Calibri"
-    DEFAULT_SIZE = 11
+    @staticmethod
+    def _get_default_font():
+        return StyleManager.get_instance().get_styles().content.font.name
+
+    @staticmethod
+    def _get_default_size():
+        return int(StyleManager.get_instance().get_styles().content.font.size)
 
     @staticmethod
     def format(
@@ -39,12 +45,12 @@ class FontFormatter:
         if font_name:
             font.name = font_name
         else:
-            font.name = FontFormatter.DEFAULT_FONT
+            font.name = FontFormatter._get_default_font()
 
         if font_size:
             font.size = Pt(font_size)
         else:
-            font.size = Pt(FontFormatter.DEFAULT_SIZE)
+            font.size = Pt(FontFormatter._get_default_size())
 
         if bold is not None:
             font.bold = bold
@@ -77,23 +83,27 @@ class FontFormatter:
     @staticmethod
     def format_title(run: Run):
         """Format title text."""
-        FontFormatter.format(run, font_name="Calibri", font_size=28, bold=True, color="#003366")
+        s = StyleManager.get_instance().get_styles()
+        FontFormatter.format(run, font_name=s.cover_page.title_font.name, font_size=int(s.cover_page.title_font.size), bold=True, color="#003333")
 
     @staticmethod
     def format_heading(run: Run, level: int = 1):
         """Format heading text."""
-        sizes = {1: 24, 2: 20, 3: 16}
-        FontFormatter.format(run, font_name="Calibri", font_size=sizes.get(level, 16), bold=True)
+        s = StyleManager.get_instance().get_styles()
+        h = s.get_heading(level)
+        FontFormatter.format(run, font_name=h.font.name, font_size=int(h.font.size), bold=True)
 
     @staticmethod
     def format_body(run: Run):
         """Format body text."""
-        FontFormatter.format(run, font_name="Calibri", font_size=11)
+        s = StyleManager.get_instance().get_styles()
+        FontFormatter.format(run, font_name=s.content.font.name, font_size=int(s.content.font.size))
 
     @staticmethod
     def format_caption(run: Run):
         """Format caption text."""
-        FontFormatter.format(run, font_name="Calibri", font_size=10, italic=True)
+        s = StyleManager.get_instance().get_styles()
+        FontFormatter.format(run, font_name=s.content.font.name, font_size=max(8, int(s.content.font.size) - 2), italic=True)
 
     @staticmethod
     def copy_style(source_run: Run, target_run: Run):
@@ -117,13 +127,13 @@ class FontFormatter:
     ) -> OxmlElement:
         """Create a w:rPr OxmlElement with the specified font properties."""
         rPr = OxmlElement('w:rPr')
-        name = font_name or FontFormatter.DEFAULT_FONT
+        name = font_name or FontFormatter._get_default_font()
         rFonts = OxmlElement('w:rFonts')
         rFonts.set(qn('w:ascii'), name)
         rFonts.set(qn('w:hAnsi'), name)
         rFonts.set(qn('w:cs'), name)
         rPr.append(rFonts)
-        size = font_size or FontFormatter.DEFAULT_SIZE
+        size = font_size or int(FontFormatter._get_default_size())
         sz = OxmlElement('w:sz')
         sz.set(qn('w:val'), str(int(size * 2)))
         rPr.append(sz)

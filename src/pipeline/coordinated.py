@@ -349,6 +349,7 @@ class CoordinatedPipeline(BasePipeline):
                 )
                 ctx.output_path = output
                 self.logger.info(f"DOCX assembled: {output}")
+                self._validate_docx_styles(output)
                 self._convert_to_pdf(output)
             except Exception as e:
                 self.logger.warning(f"DOCX assembly via v2 failed: {e}, falling back")
@@ -357,6 +358,25 @@ class CoordinatedPipeline(BasePipeline):
             self._ensure_document_state(ctx)
         self.logger.info("Document state assembled")
         return True
+
+    def _validate_docx_styles(self, docx_path: str):
+        try:
+            from src.document.styles import DocumentStyleValidator
+            validator = DocumentStyleValidator()
+            issues = validator.validate(docx_path)
+            if issues:
+                self.logger.warning(f"Style validation found {len(issues)} issue(s)")
+                for issue in issues[:5]:
+                    self.logger.warning(f"  Style issue: {issue}")
+                try:
+                    fix_count = validator.auto_fix(docx_path)
+                    self.logger.info(f"Auto-fixed {fix_count} style issue(s)")
+                except Exception as fix_err:
+                    self.logger.warning(f"Auto-fix failed: {fix_err}")
+            else:
+                self.logger.info("Style validation passed")
+        except Exception as e:
+            self.logger.warning(f"Style validation skipped: {e}")
 
     def _convert_to_pdf(self, docx_path: str):
         pdf_path = docx_path.replace(".docx", ".pdf")
