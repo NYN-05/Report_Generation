@@ -127,11 +127,11 @@ class ContentValidator:
 
         scores = []
         for p in paras:
-            if p.text.startswith("[Source Material Required]"):
+            if "Insufficient source material" in p.text:
                 scores.append(0.0)
                 continue
-            structure, length, quality, fmt, readability = self._quality.score(p.text)
-            avg = (structure + length + quality + fmt + readability) / 5
+            scores_tuple = self._quality.score(p.text)
+            avg = sum(scores_tuple) / len(scores_tuple)
             scores.append(avg)
 
         return sum(scores) / len(scores) if scores else 0.0
@@ -145,14 +145,18 @@ class ContentValidator:
         has_square_brackets = bool(re.search(r'\[\d+\]', all_text))
         has_according = bool(re.search(r'According to', all_text))
         has_source_ref = bool(re.search(r'(source|reference|document|study|work)', all_text, re.IGNORECASE))
+        has_numbers = bool(re.search(r'\d+\.?\d*%|\d+\.?\d*\s*(accuracy|precision|recall|F1|score)', all_text, re.IGNORECASE))
+        has_fake = bool(re.search(r'(fake|hallucinated|fabricated|invented)', all_text, re.IGNORECASE))
 
         score = 0.0
         if has_square_brackets: score += 0.4
-        if has_according: score += 0.3
-        if has_source_ref: score += 0.3
-        if len(section.evidence_sources) > 0: score += 0.2
+        if has_according: score += 0.2
+        if has_source_ref: score += 0.1
+        if has_numbers: score += 0.2
+        if len(section.evidence_sources) > 0: score += 0.1
+        if has_fake: score -= 0.5
 
-        return min(score, 1.0)
+        return max(0.0, min(1.0, score))
 
     def _check_technical_depth(self, section: SectionContent) -> float:
         all_text = " ".join(
@@ -162,7 +166,7 @@ class ContentValidator:
         if not all_text:
             return 0.0
         score, _ = self._depth.evaluate_section(all_text, len(section.evidence_sources))
-        return score.specificity * 0.3 + score.technical_detail * 0.4 + score.terminology_quality * 0.3
+        return score.relevance * 0.2 + score.technical_detail * 0.3 + score.evidence_usage * 0.2 + score.uniqueness * 0.15 + score.academic_tone * 0.15
 
     def _check_structure(self, section: SectionContent) -> float:
         has_heading = any(b.__class__.__name__ == "HeadingBlock" for b in section.blocks)

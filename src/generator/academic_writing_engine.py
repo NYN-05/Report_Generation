@@ -11,6 +11,7 @@ Each section type has unique structure requirements:
 
 from typing import Dict, Any, Optional, List
 from src.core.logger import get_logger
+from src.core.exceptions import ProviderNotAvailableError
 from .content_blocks import (
     SectionContent, ParagraphBlock, BulletListBlock, BulletItem,
     HeadingBlock, Citation, SourceRequiredBlock, TableBlock, TableRow,
@@ -34,6 +35,7 @@ class AcademicWritingEngine:
         retrieval_context: str = "",
         evidence_chunks: Optional[List[Dict]] = None,
         previous_summary: str = "",
+        existing_chapter_summaries: Optional[List[str]] = None,
     ) -> SectionContent:
         if not retrieval_context and not evidence_chunks:
             return self._generate_no_evidence_section(section_type, topic)
@@ -41,13 +43,17 @@ class AcademicWritingEngine:
         prompt = self._build_section_prompt(
             section_type, topic, report_type,
             retrieval_context, evidence_chunks, previous_summary,
+            existing_chapter_summaries,
         )
 
         if self._provider and self._provider.is_available():
             raw = self._generate_with_llm(prompt)
             return self._parse_response(section_type, raw, evidence_chunks)
-        else:
-            return self._template_section(section_type, topic, evidence_chunks)
+
+        raise ProviderNotAvailableError(
+            f"Ollama is not available — cannot generate section '{section_type}'. "
+            f"This report requires an active Ollama instance with model loaded."
+        )
 
     def _build_section_prompt(
         self,
@@ -57,6 +63,7 @@ class AcademicWritingEngine:
         retrieval_context: str,
         evidence_chunks: Optional[List[Dict]],
         previous_summary: str,
+        existing_chapter_summaries: Optional[List[str]] = None,
     ) -> str:
         from .prompt_builder_v2 import PromptBuilderV2
         builder = PromptBuilderV2()
@@ -66,6 +73,7 @@ class AcademicWritingEngine:
             report_type=report_type,
             retrieval_context=retrieval_context,
             previous_section_summary=previous_summary,
+            existing_chapter_summaries=existing_chapter_summaries,
         )
 
     def _generate_with_llm(self, prompt: str) -> str:
@@ -73,20 +81,28 @@ class AcademicWritingEngine:
         try:
             messages = [
                 Message(role="system", content=(
-                    "You are an engineering student writing a university project report. "
-                    "Write with technical precision and academic rigor. "
-                    "Base every claim on the provided evidence. "
-                    "Do not invent facts, statistics, or references. "
-                    "If evidence is missing, write [Source Material Required]."
+                    "You are a domain expert writing a university project report. "
+                    "Write with technical precision, analytical depth, and academic rigor. "
+                    "Base every claim exclusively on the provided evidence. "
+                    "Never invent facts, statistics, percentages, survey results, growth rates, "
+                    "performance metrics, research findings, publication trends, or references. "
+                    "If evidence is missing for a claim, write exactly: "
+                    "'Insufficient source material available for this claim.' "
+                    "Do NOT use topic-replacement templates. Every paragraph must contain "
+                    "specific analysis, not generic observations. "
+                    "Each chapter must have a distinct purpose — do NOT mix content types "
+                    "across chapters (e.g., do not put methodology in results)."
                 )),
                 Message(role="user", content=prompt),
             ]
             opts = CompletionOptions(temperature=0.3, max_tokens=4096, timeout=180)
             response = self._provider.chat(messages, options=opts)
             return response.content.strip()
+        except ProviderNotAvailableError:
+            raise
         except Exception as e:
-            logger.warning(f"LLM generation failed for section: {e}")
-            return ""
+            logger.error(f"LLM generation failed for section: {e} — no fallback available")
+            raise
 
     def _parse_response(
         self,
@@ -111,7 +127,7 @@ class AcademicWritingEngine:
         if not raw:
             section.add_block(SourceRequiredBlock(
                 query=section_type,
-                message=f"[Source Material Required] Evidence retrieval returned no content for {heading}."
+                message=f"Insufficient source material available for this claim. Evidence retrieval returned no content for {heading}."
             ))
             return section
 
@@ -120,7 +136,7 @@ class AcademicWritingEngine:
         for para in paragraphs:
             if para.startswith("[Table:") or para.startswith("|"):
                 continue
-            if para.startswith("[Source Material Required]"):
+            if "Insufficient source material" in para or "Insufficient evidence" in para:
                 section.add_block(SourceRequiredBlock(
                     query=section_type,
                     message=para,
@@ -223,9 +239,10 @@ class AcademicWritingEngine:
         section.add_block(SourceRequiredBlock(
             query=section_type,
             message=(
-                f"[Source Material Required] No source documents were retrieved "
-                f"for the {heading} section. Evidence-based content generation "
-                f"requires uploaded reference materials covering {topic}."
+                f"Insufficient source material available for this claim. "
+                f"No source documents were retrieved for the {heading} section. "
+                f"Evidence-based content generation requires uploaded reference "
+                f"materials covering {topic}."
             ),
         ))
         return section
@@ -266,6 +283,6 @@ class AcademicWritingEngine:
         if len(section.blocks) <= 1:
             section.add_block(SourceRequiredBlock(
                 query=section_type,
-                message=f"[Source Material Required] No usable evidence chunks for {section_type}.",
+                message=f"Insufficient source material available for this claim. No usable evidence chunks for {section_type}.",
             ))
         return section

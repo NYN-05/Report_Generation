@@ -3,13 +3,15 @@
 Pass 1: Draft
 Pass 2: Evidence Injection
 Pass 3: Technical Expansion
-Pass 4: Terminology Consistency
-Pass 5: Style Refinement
-Pass 6: Formatting Validation
-Pass 7: Final Review
+Pass 4: Anti-Repetition (stops repeated explanations, examples, statistics, wording)
+Pass 5: Terminology Consistency
+Pass 6: Style Refinement (removes vague statements, empty claims, template patterns)
+Pass 7: Formatting Validation
+Pass 8: Final Review
 """
 
-from typing import Dict, Any, Optional, List, Tuple
+import re
+from typing import Dict, Any, Optional, List, Tuple, Set
 from src.core.logger import get_logger
 from .content_blocks import SectionContent, ParagraphBlock, BulletListBlock, SourceRequiredBlock
 from .paragraph_quality import ParagraphQualityControl
@@ -24,6 +26,10 @@ class MultiPassImprover:
         self._provider = provider
         self._quality = ParagraphQualityControl()
         self._depth = TechnicalDepthEvaluator()
+        self._previous_content: List[str] = []
+
+    def set_previous_content(self, contents: List[str]):
+        self._previous_content = contents
 
     def improve(self, section: SectionContent, section_type: str, topic: str) -> Tuple[SectionContent, List[str]]:
         logs = []
@@ -36,17 +42,20 @@ class MultiPassImprover:
         section, log3 = self._pass_technical_expansion(section, section_type)
         logs.extend(log3)
 
-        section, log4 = self._pass_terminology_consistency(section)
+        section, log4 = self._pass_anti_repetition(section)
         logs.extend(log4)
 
-        section, log5 = self._pass_style_refinement(section)
+        section, log5 = self._pass_terminology_consistency(section)
         logs.extend(log5)
 
-        section, log6 = self._pass_formatting_validation(section)
+        section, log6 = self._pass_style_refinement(section)
         logs.extend(log6)
 
-        section, log7 = self._pass_final_review(section)
+        section, log7 = self._pass_formatting_validation(section)
         logs.extend(log7)
+
+        section, log8 = self._pass_final_review(section)
+        logs.extend(log8)
 
         return section, logs
 
@@ -54,7 +63,8 @@ class MultiPassImprover:
         logs = []
         for block in section.blocks:
             if isinstance(block, ParagraphBlock):
-                if not block.evidence_source and not block.text.startswith("[Source Material Required]"):
+                lacks_evidence = not block.evidence_source and "Insufficient source material" not in block.text
+                if lacks_evidence:
                     if self._provider and self._provider.is_available():
                         enhanced = self._enhance_with_evidence(block.text)
                         if enhanced:
@@ -71,7 +81,7 @@ class MultiPassImprover:
                 "The following paragraph lacks evidence from source material. "
                 "Enhance it by inserting specific references to source documents. "
                 "If no specific evidence is available, append:\n"
-                "[Source Material Required — specific evidence needed for claims here]\n\n"
+                "Insufficient source material available for this claim.\n\n"
                 f"Paragraph:\n{text}"
             )
             messages = [
@@ -88,7 +98,9 @@ class MultiPassImprover:
         logs = []
         for block in section.blocks:
             if isinstance(block, ParagraphBlock):
-                score, passed = self._depth.evaluate_section(block.text, evidence_count=1 if block.evidence_source else 0)
+                score, passed = self._depth.evaluate_section(
+                    block.text, evidence_count=1 if block.evidence_source else 0
+                )
                 if not passed and score.technical_detail < 0.5:
                     if self._provider and self._provider.is_available():
                         expanded = self._expand_technical(block.text, section_type)
@@ -105,7 +117,8 @@ class MultiPassImprover:
                 "The following paragraph lacks sufficient technical depth. "
                 "Expand it with domain-specific technical terminology, precise descriptions "
                 f"of components, algorithms, or methods appropriate for a {section_type} section. "
-                "Maintain academic tone and do not add fabricated statistics.\n\n"
+                "Maintain academic tone and do not add fabricated statistics. "
+                "Do NOT use topic-replacement-template patterns.\n\n"
                 f"Paragraph:\n{text}"
             )
             messages = [
@@ -117,6 +130,43 @@ class MultiPassImprover:
             return response.content.strip()
         except Exception:
             return ""
+
+    def _pass_anti_repetition(self, section: SectionContent) -> Tuple[SectionContent, List[str]]:
+        logs = []
+        if not self._previous_content:
+            return section, logs
+
+        all_previous = " ".join(self._previous_content).lower()
+        prev_words = set(all_previous.split())
+        prev_sentences = set(re.split(r'(?<=[.!?])\s+', all_previous))
+
+        for block in section.blocks:
+            if isinstance(block, ParagraphBlock):
+                text_lower = block.text.lower()
+                current_words = set(text_lower.split())
+                overlap = current_words & prev_words
+                if len(overlap) / max(len(current_words), 1) > 0.4:
+                    logs.append(
+                        f"  High word overlap ({len(overlap)}/{len(current_words)} words) "
+                        f"with previous content"
+                    )
+
+                current_sentences = set(re.split(r'(?<=[.!?])\s+', text_lower))
+                repeated = current_sentences & prev_sentences
+                if repeated:
+                    for s in list(repeated)[:2]:
+                        logs.append(f"  Repeated sentence pattern detected: '{s[:60]}...'")
+
+                explicit_repeats = [
+                    "as discussed previously", "as mentioned earlier", "as stated before",
+                    "as noted above", "as described previously", "this was discussed",
+                    "this was mentioned", "as previously discussed",
+                ]
+                for phrase in explicit_repeats:
+                    if phrase in text_lower:
+                        logs.append(f"  Contains repetitive reference: '{phrase}'")
+
+        return section, logs
 
     def _pass_terminology_consistency(self, section: SectionContent) -> Tuple[SectionContent, List[str]]:
         logs = []
@@ -151,7 +201,8 @@ class MultiPassImprover:
             if isinstance(block, ParagraphBlock):
                 errors = self._quality.check_paragraph(block.text)
                 issues = [e for e in errors if any(k in e for k in
-                          ["shallow", "marketing", "conversational", "embedded"])]
+                          ["shallow", "vague", "empty", "marketing", "conversational",
+                           "embedded", "template", "Topic-replacement"])]
                 if issues and self._provider and self._provider.is_available():
                     refined = self._refine_style(block.text)
                     if refined:
@@ -166,13 +217,16 @@ class MultiPassImprover:
             prompt = (
                 "Rewrite the following paragraph to meet academic writing standards:\n"
                 "- Remove marketing language, conversational tone, and generic filler\n"
+                "- Remove vague statements like 'several aspects can be observed'\n"
+                "- Remove empty claims like 'results show significant improvement'\n"
+                "- Remove topic-replacement-template patterns\n"
                 "- Use precise technical language\n"
                 "- Maintain formal third-person academic voice\n"
                 "- Keep 120-250 words\n\n"
                 f"Paragraph:\n{text}"
             )
             messages = [
-                Message(role="system", content="You are refining academic writing style."),
+                Message(role="system", content="You are refining academic writing to eliminate template-like content."),
                 Message(role="user", content=prompt),
             ]
             opts = CompletionOptions(temperature=0.3, max_tokens=1024, timeout=60)
@@ -195,8 +249,11 @@ class MultiPassImprover:
         block_count = len(section.blocks)
         para_count = sum(1 for b in section.blocks if isinstance(b, ParagraphBlock))
         source_blocks = sum(1 for b in section.blocks if isinstance(b, SourceRequiredBlock))
+        bullet_count = sum(1 for b in section.blocks if isinstance(b, BulletListBlock))
+        total_evidence = len(section.evidence_sources)
         logs.append(
             f"  Final: {block_count} blocks, {para_count} paragraphs, "
-            f"{source_blocks} missing-evidence markers"
+            f"{bullet_count} bullet lists, {source_blocks} missing-evidence markers, "
+            f"{total_evidence} evidence sources"
         )
         return section, logs

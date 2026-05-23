@@ -108,6 +108,9 @@ class ReportGenerator(BaseGenerator):
                 "metadata": metadata,
             })
             previous_summary = section.to_text()[:500]
+            self._section_gen._improver.set_previous_content(
+                [s.to_text() for s in section_contents]
+            )
 
         validation_results = self._validate_all(section_contents, context.topic)
         all_passed = all(vr.get("passed", False) for vr in validation_results.values())

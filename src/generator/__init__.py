@@ -15,6 +15,7 @@ from .technical_depth import TechnicalDepthEvaluator, DepthScore
 from .multi_pass_improver import MultiPassImprover
 from .content_validator import ContentValidator, ValidationResult
 from .prompt_builder_v2 import PromptBuilderV2
+from .chapter_uniqueness import ChapterUniquenessChecker, ChapterSignature
 
 __all__ = [
     "ReportGenerator",
@@ -43,4 +44,6 @@ __all__ = [
     "ContentValidator",
     "ValidationResult",
     "PromptBuilderV2",
+    "ChapterUniquenessChecker",
+    "ChapterSignature",
 ]

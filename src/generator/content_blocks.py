@@ -131,7 +131,7 @@ class HeadingBlock:
 class SourceRequiredBlock:
     query: str
     context: str = ""
-    message: str = "[Source Material Required]"
+    message: str = "Insufficient source material available for this claim."
 
     block_type = BlockType.SOURCE_REQUIRED
 

@@ -9,8 +9,8 @@ Every prompt must include:
 - FORMATTING REQUIREMENTS
 - CITATION REQUIREMENTS
 - TECHNICAL DEPTH REQUIREMENTS
-
-Never allow generation without retrieved evidence.
+- CHAPTER UNIQUENESS REQUIREMENTS
+- ANTI-REPETITION REQUIREMENTS
 """
 
 import os
@@ -24,25 +24,32 @@ class PromptBuilderV2:
 
     SECTION_STRUCTURES = {
         "introduction": {
+            "purpose": "Establish the foundation: background context, problem statement, motivation, objectives, scope, and contribution. This chapter must NOT discuss methodology, results, or prior work in detail.",
             "sections": ["Background", "Problem Statement", "Motivation", "Objectives", "Scope", "Contribution"],
         },
         "literature_review": {
+            "purpose": "Survey and critically compare existing research. Identify strengths, limitations, and research gaps. This chapter must NOT describe the system methodology or present results.",
             "sections": ["Research Area", "Existing Work", "Strengths", "Limitations", "Research Gap"],
         },
         "methodology": {
+            "purpose": "Describe the technical approach: system architecture, workflow, algorithms, models, implementation strategy. This chapter must NOT review literature or present results.",
             "sections": ["System Architecture", "Workflow", "Algorithms", "Models", "Implementation Strategy"],
         },
         "implementation": {
+            "purpose": "Detail the actual development: environment, components, integration, testing. This chapter must NOT re-describe the methodology or present evaluation results.",
             "sections": ["Development Environment", "Core Components", "Integration", "Testing"],
         },
         "results": {
+            "purpose": "Present experimental findings: setup, observations, metrics, analysis. This chapter must NOT introduce background, review literature, or describe methodology. Focus on what was observed.",
             "sections": ["Experimental Setup", "Observations", "Metrics", "Analysis"],
         },
         "discussion": {
+            "purpose": "Interpret results: what they mean, advantages, limitations, future work. This chapter must NOT re-present raw results or re-state the methodology.",
             "sections": ["Interpretation", "Advantages", "Limitations", "Future Improvements"],
         },
         "conclusion": {
-            "sections": ["Summary", "Achievements", "Future Work"],
+            "purpose": "Synthesize the report: summary of findings, contributions, limitations, future work. This chapter must NOT repeat the introduction or re-present detailed results.",
+            "sections": ["Summary", "Major Findings", "Contributions", "Limitations", "Future Work"],
         },
     }
 
@@ -56,16 +63,23 @@ class PromptBuilderV2:
         previous_section_summary: str = "",
         citation_instructions: str = "",
         target_words: int = 500,
+        existing_chapter_summaries: Optional[List[str]] = None,
         **extra_vars,
     ) -> str:
         structure = self.SECTION_STRUCTURES.get(section_type, {})
         sub_sections = structure.get("sections", [])
+        purpose = structure.get("purpose", "")
 
         prompt_parts = [
             "=" * 60,
             "REPORT OBJECTIVE",
             "=" * 60,
             f"Write the {section_type.replace('_', ' ')} section for a {report_type} on: {topic}",
+            "",
+            "=" * 60,
+            "CHAPTER PURPOSE (DO NOT VIOLATE)",
+            "=" * 60,
+            purpose,
             "",
             "=" * 60,
             "SECTION OBJECTIVE",
@@ -79,6 +93,51 @@ class PromptBuilderV2:
 
         for i, ss in enumerate(sub_sections, 1):
             prompt_parts.append(f"{i}. {ss}")
+
+        prompt_parts.extend([
+            "",
+            "=" * 60,
+            "CHAPTER UNIQUENESS REQUIREMENTS",
+            "=" * 60,
+            "This chapter MUST have a distinct purpose from all other chapters.",
+            "Introduction: ONLY background, problem, motivation, objectives, scope.",
+            "Literature Review: ONLY existing work, comparisons, research gaps.",
+            "Methodology: ONLY architecture, workflow, algorithms, models.",
+            "Implementation: ONLY development details, components, integration.",
+            "Results: ONLY experimental findings, observations, metrics, analysis.",
+            "Discussion: ONLY interpretation, implications, limitations.",
+            "Conclusion: ONLY summary, contributions, future work.",
+            "",
+            "DO NOT mix content from other chapters.",
+            "DO NOT repeat explanations from previous chapters.",
+            "If a concept was already explained, reference it briefly, do not re-explain.",
+            "",
+            "=" * 60,
+            "ANTI-REPETITION REQUIREMENTS",
+            "=" * 60,
+            "Before writing any paragraph, check that it is not semantically similar",
+            "to content already written in previous chapters.",
+            "Avoid:",
+            "- repeated explanations of the same concept",
+            "- repeated examples",
+            "- repeated statistics or metrics",
+            "- repeated sentence patterns",
+            "- repeated wording or phrasing",
+            "",
+            "Every paragraph must contain NEW information, analysis, or perspective.",
+            "Maximum allowed similarity to any previous chapter: 20%.",
+        ])
+
+        if existing_chapter_summaries:
+            prompt_parts.extend([
+                "",
+                "=" * 60,
+                "EXISTING CHAPTER SUMMARIES (AVOID REPETITION)",
+                "=" * 60,
+            ])
+            for i, summary in enumerate(existing_chapter_summaries):
+                prompt_parts.append(f"--- Previous Chapter {i+1} ---")
+                prompt_parts.append(summary[:400])
 
         prompt_parts.extend([
             "",
@@ -99,8 +158,8 @@ class PromptBuilderV2:
             prompt_parts.append(
                 "[NO EVIDENCE AVAILABLE] No source documents were retrieved for this section. "
                 "DO NOT fabricate facts, statistics, references, or data. "
-                "If the section requires specific evidence, insert the placeholder: "
-                "[Source Material Required]"
+                "If the section requires specific evidence, write exactly: "
+                "Insufficient source material available for this claim."
             )
 
         if previous_section_summary:
@@ -124,7 +183,8 @@ class PromptBuilderV2:
             prompt_parts.append(
                 "Cite sources using IEEE format [1], [2], etc. "
                 "Reference the source document for each claim. "
-                "Each paragraph should cite at least one evidence source."
+                "Each paragraph should cite at least one evidence source. "
+                "Never generate fake authors, fake journals, fake conferences, fake DOIs, or fake URLs."
             )
 
         prompt_parts.extend([
@@ -134,12 +194,18 @@ class PromptBuilderV2:
             "=" * 60,
             "- IEEE academic tone throughout",
             "- Third-person formal writing only",
-            "- No conversational language (no \"let's\", \"we'll\", \"you may\")",
-            "- No marketing language (no \"cutting-edge\", \"robust\", \"seamless\")",
+            "- No conversational language (no \"let's\", \"we'll\", \"you may\", \"imagine\")",
+            "- No marketing language (no \"cutting-edge\", \"robust\", \"seamless\", \"game-changer\")",
             "- No generic filler or shallow statements",
-            "- Each paragraph must have: topic sentence, supporting explanation, technical details, concluding transition",
+            "- Each paragraph must have: core idea, explanation, supporting detail, analysis, transition",
             "- Minimum 120 words per paragraph, maximum 250 words",
             "- Average sentence length: 15-25 words",
+            "- Use domain-specific terminology appropriately",
+            "- Forbidden phrases (meaningless unless followed by specific evidence):",
+            '  "Several important aspects can be observed."',
+            '  "This topic has gained significant attention."',
+            '  "Research indicates many benefits."',
+            '  "Various studies have shown improvements."',
             "",
             "=" * 60,
             "FORMATTING REQUIREMENTS",
@@ -147,13 +213,24 @@ class PromptBuilderV2:
             "- Use proper paragraph breaks between distinct ideas",
             "- NEVER embed bullet points or list markers inside paragraphs",
             "- Bullet lists must be structured as: lead-in sentence, list with title+description, lead-out sentence",
-            "- Each bullet item must have a bold title followed by a description on a new line",
+            "- Each bullet item must have a bold title followed by a description",
             "- Tables must have clear headers and rows",
             "- No markdown formatting inside paragraphs",
+            "- Use the most appropriate format: paragraphs for narrative, bullet lists for lists, tables for comparisons",
             "",
             "=" * 60,
             "TECHNICAL DEPTH REQUIREMENTS",
             "=" * 60,
+            "Every section must answer these 7 questions:",
+            "1. What? — What is being presented or discussed?",
+            "2. Why? — Why is it important or relevant?",
+            "3. How? — How does it work or how was it done?",
+            "4. Impact? — What is the effect or significance?",
+            "5. Limitations? — What constraints or weaknesses exist?",
+            "6. Applications? — Where can it be applied?",
+            "7. Future implications? — What are the next steps?",
+            "",
+            "Do not stop at definitions. Provide explanation and analysis.",
             "- Use domain-specific terminology appropriately",
             "- Reference specific components, algorithms, or methods from the evidence",
             "- Include precise technical descriptions, not vague generalities",
@@ -163,12 +240,16 @@ class PromptBuilderV2:
             "=" * 60,
             "EVIDENCE USAGE RULES",
             "=" * 60,
-            "RULE 1: Every claim MUST trace back to retrieved evidence",
+            "RULE 1: Every major claim MUST trace back to retrieved evidence",
             "RULE 2: Never invent statistics, percentages, or performance metrics",
             "RULE 3: Never invent citations or references to papers not in evidence",
             "RULE 4: Never invent dataset names or sizes",
-            "RULE 5: If evidence is missing a necessary fact, write [Source Material Required]",
+            "RULE 5: If evidence is missing a necessary fact, write:",
+            '     "Insufficient source material available for this claim."',
             "RULE 6: All technical claims must cite the source document",
+            "RULE 7: Never write topic-name-replacement templates",
+            "     Bad: 'This section discusses the applications of [Topic] in [Domain].'",
+            '     Good: "The application of random forest classifiers for detecting anomalous network traffic patterns has been extensively documented."',
             "",
             "=" * 60,
             "OUTPUT FORMAT",
@@ -193,34 +274,43 @@ class PromptBuilderV2:
     def _get_section_objective(self, section_type: str, topic: str) -> str:
         objectives = {
             "introduction": (
-                f"Establish the background, problem statement, and motivation for studying {topic}. "
-                "Define clear objectives, scope, and the contribution of this report."
+                f"Establish the background context for {topic}, clearly articulate the "
+                "problem being addressed, explain why this problem matters, define specific "
+                "objectives, delimit the scope of work, and state the contribution of this report. "
+                "Do NOT describe methodology or results."
             ),
             "literature_review": (
-                f"Survey existing research and approaches related to {topic}. "
-                "Identify strengths and limitations of current work, and establish "
-                "the research gap that this report addresses."
+                f"Survey existing research related to {topic}. Critically compare different "
+                "approaches, identify their strengths and limitations, and establish the specific "
+                "research gap that this report addresses. Must include comparative analysis, "
+                "not just generic descriptions of prior work."
             ),
             "methodology": (
                 f"Describe the system architecture, workflow, algorithms, models, and "
-                "implementation strategy used to address the problem of {topic}. "
-                "Provide sufficient technical detail for reproducibility."
+                "implementation strategy used. Provide sufficient technical detail for reproducibility. "
+                "Justify design choices. Do NOT review literature or present results."
             ),
             "implementation": (
-                f"Detail the development environment, core components, integration approach, "
-                "and testing methodology for the system addressing {topic}."
+                f"Detail the actual development process: environment setup, core component "
+                "implementation, integration approach, and testing methodology. Focus on the "
+                "implementation decisions, trade-offs, and practical considerations. "
+                "Do NOT re-describe the methodology."
             ),
             "results": (
-                f"Present experimental setup, observations, metrics, and analysis of results "
-                f"for the {topic} system. Base all numerical claims on evidence."
+                f"Present experimental findings objectively. Describe the setup, report observations, "
+                "present metrics, and provide analysis of what the data shows. "
+                "Do NOT introduce background, review literature, or describe methodology. "
+                "Focus on observations and findings, not interpretation."
             ),
             "discussion": (
-                f"Interpret the results, discuss advantages and limitations of the approach, "
-                f"and outline future improvements for work on {topic}."
+                f"Interpret the results presented in the previous chapter. Discuss advantages "
+                "and limitations of the approach, compare with existing work, and outline "
+                "implications and future improvements. Do NOT re-present raw results."
             ),
             "conclusion": (
-                f"Summarize the key achievements of this report on {topic}, "
-                "reiterate contributions, and suggest directions for future work."
+                f"Synthesize the entire report. Summarize key findings, state contributions, "
+                "acknowledge limitations, and suggest future research directions. "
+                "Do NOT repeat the introduction or re-present detailed results."
             ),
         }
         return objectives.get(section_type, f"Write the {section_type} section for {topic}.")

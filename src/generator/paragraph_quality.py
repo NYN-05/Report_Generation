@@ -1,10 +1,15 @@
 """ParagraphQualityControl — enforces paragraph structure and quality standards.
 
 Each paragraph must satisfy:
-- Minimum 120 words
-- Maximum 250 words
-- Contains: topic sentence, supporting explanation, technical details, concluding transition
-- Rejects shallow, generic, marketing, or conversational content
+- Minimum 120 words, maximum 250 words
+- Core idea, explanation, supporting detail, analysis, transition
+- Rejects vague statements, generic observations, marketing language, empty claims, filler phrases
+
+Forbidden phrases:
+  "Several important aspects can be observed."
+  "This topic has gained significant attention."
+  "Research indicates many benefits."
+  "Various studies have shown improvements."
 """
 
 import re
@@ -33,6 +38,34 @@ class ParagraphQualityControl:
         r"as mentioned (above|earlier|previously)",
         r"it should be noted that",
         r"it is worth mentioning",
+    ]
+
+    VAGUE_STATEMENTS = [
+        r"Several (important|key|significant) aspects can be observed",
+        r"This (topic|area|field) has gained (significant|considerable|substantial) attention",
+        r"Research indicates (many|numerous|several) benefits",
+        r"Various studies have shown (improvements|enhancements|benefits)",
+        r"It is (widely|generally|commonly) (known|accepted|believed|understood) that",
+        r"There has been (growing|increasing|significant) (interest|focus|attention)",
+        r"In (recent|the past|the last) (years|decades), there has been",
+        r"The (importance|significance|relevance) of .* cannot be (overstated|overemphasized|overlooked)",
+        r"This (section|chapter|paper|report) (discusses|examines|explores|investigates)",
+        r"The (following|above|aforementioned) (section|chapter) (discussed|described|presented)",
+    ]
+
+    EMPTY_CLAIMS = [
+        r"results show (that )?(significant|great|excellent|good) (improvement|performance|results)",
+        r"the proposed (method|approach|system|framework) (achieves|obtains|yields) (better|superior|excellent)",
+        r"experimental results (demonstrate|show|indicate|confirm) the (effectiveness|efficiency|superiority)",
+        r"comprehensive (analysis|evaluation|assessment) reveals",
+        r"promising (results|outcomes|performance|directions)",
+        r"very (good|high|strong|positive|effective) (results|performance|outcomes)",
+    ]
+
+    TOPIC_TEMPLATE_PATTERNS = [
+        r"the (topic|subject|field|area) of ",
+        r"in the context of ",
+        r"in (the field|the area|relation) of ",
     ]
 
     MARKETING_PATTERNS = [
@@ -75,6 +108,18 @@ class ParagraphQualityControl:
         if shallow:
             errors.append(f"Shallow/generic language: {shallow[:2]}")
 
+        vague = self._check_patterns(text, self.VAGUE_STATEMENTS)
+        if vague:
+            errors.append(f"Vague statement: {vague[0][:60]}")
+
+        empty = self._check_patterns(text, self.EMPTY_CLAIMS)
+        if empty:
+            errors.append(f"Empty claim: {empty[0][:60]}")
+
+        template = self._check_patterns(text, self.TOPIC_TEMPLATE_PATTERNS)
+        if template:
+            errors.append(f"Topic-replacement-template pattern detected: {template[0]}")
+
         marketing = self._check_patterns(text, self.MARKETING_PATTERNS)
         if marketing:
             errors.append(f"Marketing language: {marketing[:2]}")
@@ -103,6 +148,14 @@ class ParagraphQualityControl:
         if len(sentences) < 3:
             errors.append(f"Too few sentences: {len(sentences)} (min 3)")
 
+        if len(sentences) >= 3:
+            has_analysis = any(
+                re.search(r'\b(therefore|however|furthermore|consequently|because|since|thus|hence|whereas|although|despite|nevertheless|moreover|specifically|notably)\b', s, re.IGNORECASE)
+                for s in sentences
+            )
+            if not has_analysis:
+                errors.append("Missing analytical language (therefore, however, etc.)")
+
         return errors
 
     def _check_patterns(self, text: str, patterns: List[str]) -> List[str]:
@@ -121,7 +174,7 @@ class ParagraphQualityControl:
             errors.append("Bullet markers embedded inside paragraph")
         return errors
 
-    def score(self, text: str) -> Tuple[float, float, float, float, float]:
+    def score(self, text: str) -> Tuple[float, float, float, float, float, float, float]:
         words = text.split()
         wc = len(words)
 
@@ -139,9 +192,13 @@ class ParagraphQualityControl:
             length_score = max(0, 1 - (wc - self.MAX_WORDS) / self.MAX_WORDS)
 
         shallow_count = len(self._check_patterns(text, self.SHALLOW_PATTERNS))
+        vague_count = len(self._check_patterns(text, self.VAGUE_STATEMENTS))
+        empty_count = len(self._check_patterns(text, self.EMPTY_CLAIMS))
+        template_count = len(self._check_patterns(text, self.TOPIC_TEMPLATE_PATTERNS))
         marketing_count = len(self._check_patterns(text, self.MARKETING_PATTERNS))
         conv_count = len(self._check_patterns(text, self.CONVERSATIONAL_PATTERNS))
-        quality_score = max(0, 1.0 - (shallow_count + marketing_count + conv_count) * 0.2)
+        total_violations = shallow_count + vague_count + empty_count + template_count + marketing_count + conv_count
+        quality_score = max(0, 1.0 - total_violations * 0.15)
 
         bullet_issues = len(self._check_embedded_bullets(text))
         format_score = max(0, 1.0 - bullet_issues * 0.5)
@@ -153,10 +210,18 @@ class ParagraphQualityControl:
         elif avg_sentence_len > 40:
             readability_score = 0.6
 
-        return (structure_score, length_score, quality_score, format_score, readability_score)
+        has_analysis = bool(re.search(r'\b(therefore|however|furthermore|consequently|because|since|thus|hence|whereas|although|nevertheless|moreover)\b', text, re.IGNORECASE))
+        analysis_score = 0.8 if has_analysis else 0.4
+
+        transition_score = 1.0
+        if sentences and not re.search(r'\b(this|these|that|those|such|the)\b', sentences[-1], re.IGNORECASE):
+            transition_score = 0.7
+
+        return (structure_score, length_score, quality_score, format_score, readability_score, analysis_score, transition_score)
 
     def is_acceptable(self, text: str) -> bool:
         errors = self.check_paragraph(text)
         critical = [e for e in errors if any(k in e for k in
-                    ["Too short", "Too long", "shallow", "marketing", "conversational", "embedded"])]
+                    ["Too short", "Too long", "shallow", "vague", "empty", "marketing", "conversational",
+                     "embedded", "template", "Topic-replacement"])]
         return len(critical) <= 1
