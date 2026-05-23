@@ -31,6 +31,7 @@ def run_coordinated(topic: str, output_path: str = "output/output.docx",
     logger.info(f"Coordinated pipeline for: {topic}")
     from src.pipeline import CoordinatedPipeline
     from src.generator import ReportGenerator, EvidenceBasedSectionGenerator
+    from src.generator.knowledge_driven_generator import KnowledgeDrivenReportGenerator
     from src.memory import MemoryHub
     from src.providers.factory import get_default_provider
 
@@ -67,6 +68,11 @@ def run_coordinated(topic: str, output_path: str = "output/output.docx",
     except Exception as e:
         logger.warning(f"Context assembler init skipped: {e}")
 
+    knowledge_generator = KnowledgeDrivenReportGenerator(
+        provider=provider,
+        context_assembler=context_assembler,
+    )
+
     report_generator = ReportGenerator(
         provider=provider,
         context_assembler=context_assembler,
@@ -79,6 +85,7 @@ def run_coordinated(topic: str, output_path: str = "output/output.docx",
         callback=lambda phase, status: print(f"  [{status}] {phase}"),
         components={
             "report_generator": report_generator,
+            "knowledge_generator": knowledge_generator,
             "memory_hub": MemoryHub(),
             "context_assembler": context_assembler,
         },
@@ -88,6 +95,10 @@ def run_coordinated(topic: str, output_path: str = "output/output.docx",
         print(f"     Output: {result.output_path}")
         phases_done = result.data.get("phases_completed", [])
         print(f"     Phases: {', '.join(phases_done)}")
+        stats = knowledge_generator.get_statistics()
+        print(f"     Facts: {stats['facts_extracted']} | "
+              f"Graph: {stats['knowledge_graph']['node_count']} concepts | "
+              f"Examples: {stats['example_library']}")
     else:
         print(f"\n[ERROR] {result.error}")
     return result.success

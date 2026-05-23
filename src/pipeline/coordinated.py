@@ -26,7 +26,7 @@ from src.core.errors import RecoverableError, PhaseError
 logger = get_logger(__name__)
 
 
-PHASE_ORDER = ["plan", "research", "generate", "review", "validate", "assemble_doc", "export"]
+PHASE_ORDER = ["plan", "research", "knowledge", "generate", "review", "validate", "refine", "assemble_doc", "export"]
 
 ALL_PHASES = set(PHASE_ORDER)
 
@@ -45,6 +45,15 @@ class PipelineContext:
     blueprint: Optional[Any] = None
     plan: Optional[Any] = None
     export_builder: Optional[Any] = None
+    knowledge_driven_generator: Optional[Any] = None
+    knowledge_graph: Optional[Any] = None
+    domain_classifier: Optional[Any] = None
+    fact_memory: Optional[Any] = None
+    chapter_summaries: Optional[Any] = None
+    hierarchical_memory: Optional[Any] = None
+    example_library: Optional[Any] = None
+    retrieval_cache: Optional[Any] = None
+    context_cache: Optional[Any] = None
     output_path: str = "output/output.docx"
     formats: List[str] = field(default_factory=lambda: ["docx"])
     metadata: Dict[str, Any] = field(default_factory=dict)
@@ -149,6 +158,15 @@ class CoordinatedPipeline(BasePipeline):
         ctx.planner = comp.get("planner")
         ctx.review_pipeline = comp.get("review_pipeline")
         ctx.export_builder = comp.get("builder")
+        ctx.knowledge_driven_generator = comp.get("knowledge_generator")
+        ctx.knowledge_graph = comp.get("knowledge_graph")
+        ctx.domain_classifier = comp.get("domain_classifier")
+        ctx.fact_memory = comp.get("fact_memory")
+        ctx.chapter_summaries = comp.get("chapter_summaries")
+        ctx.hierarchical_memory = comp.get("hierarchical_memory")
+        ctx.example_library = comp.get("example_library")
+        ctx.retrieval_cache = comp.get("retrieval_cache")
+        ctx.context_cache = comp.get("context_cache")
         if kwargs.get("callback") and ctx.event_bus:
             cb = kwargs["callback"]
             def _make_cb(status_val):
@@ -163,9 +181,11 @@ class CoordinatedPipeline(BasePipeline):
         phase_map: Dict[str, Callable] = {
             "plan": self._run_plan,
             "research": self._run_research,
+            "knowledge": self._run_knowledge,
             "generate": self._run_generate,
             "review": self._run_review,
             "validate": self._run_validate,
+            "refine": self._run_refine,
             "assemble_doc": self._run_assemble_doc,
             "export": self._run_export,
         }
@@ -195,10 +215,46 @@ class CoordinatedPipeline(BasePipeline):
     def _run_research(self, ctx: PipelineContext) -> bool:
         if ctx.context_assembler and ctx.context_assembler.is_ready():
             result = ctx.context_assembler.retrieve_context(ctx.topic)
+            ctx.metadata["retrieved_chunks"] = result.get("chunks", [])
             self.logger.info(f"Research: {len(result.get('chunks', []))} chunks")
         return True
 
+    def _run_knowledge(self, ctx: PipelineContext) -> bool:
+        if ctx.knowledge_driven_generator:
+            chunks = ctx.metadata.get("retrieved_chunks", [])
+            if not chunks and ctx.context_assembler and ctx.context_assembler.is_ready():
+                result = ctx.context_assembler.retrieve_context(ctx.topic)
+                chunks = result.get("chunks", [])
+            research_data = ctx.knowledge_driven_generator.research_phase(ctx.topic, chunks)
+            ctx.metadata["research"] = research_data
+            self.logger.info(
+                f"Knowledge phase: domain={research_data.get('domain')}, "
+                f"facts={research_data.get('facts_extracted', 0)}, "
+                f"concepts={research_data.get('knowledge_graph', {}).get('node_count', 0)}"
+            )
+        return True
+
     def _run_generate(self, ctx: PipelineContext) -> bool:
+        if ctx.knowledge_driven_generator:
+            from src.generator.knowledge_driven_generator import KnowledgeDrivenReportGenerator
+            gen = ctx.knowledge_driven_generator
+            if not isinstance(gen, KnowledgeDrivenReportGenerator):
+                gen = KnowledgeDrivenReportGenerator(
+                    provider=getattr(ctx.report_generator, '_provider', None)
+                    if ctx.report_generator else None,
+                    context_assembler=ctx.context_assembler,
+                )
+            result = gen.generate_full_report(topic=ctx.topic)
+            ctx.metadata["report"] = result
+            sections = result.get("section_contents", [])
+            self.logger.info(
+                f"[KnowledgeDriven] Generated: {result.get('section_count', 0)} sections, "
+                f"{result.get('total_words', 0)} words, "
+                f"{result.get('total_facts', 0)} facts, "
+                f"validations passed: {result.get('all_validations_passed', False)}"
+            )
+            return True
+
         if ctx.report_generator:
             from src.generator import ReportGenerator
             gen = ctx.report_generator if isinstance(ctx.report_generator, ReportGenerator) else ReportGenerator(
@@ -266,6 +322,15 @@ class CoordinatedPipeline(BasePipeline):
                               f"{len(validation.get('warnings', []))} warn")
         if ctx.memory_hub:
             ctx.memory_hub.save()
+        return True
+
+    def _run_refine(self, ctx: PipelineContext) -> bool:
+        report = ctx.metadata.get("report", {})
+        if report and report.get("section_contents"):
+            self.logger.info(
+                f"Refine phase: {report.get('section_count', 0)} sections, "
+                f"{len(report.get('bibliography', []))} bibliography entries"
+            )
         return True
 
     def _run_assemble_doc(self, ctx: PipelineContext) -> bool:
