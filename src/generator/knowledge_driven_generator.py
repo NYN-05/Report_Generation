@@ -107,7 +107,6 @@ class KnowledgeDrivenReportGenerator:
                           report_type: str = "engineering project report",
                           retrieval_query: Optional[str] = None,
                           previous_summary: str = "") -> Tuple[SectionContent, Dict[str, Any]]:
-        cache_key = f"{section_type}|{topic}"
         cached = self._context_cache.get(section_type, topic)
         if cached:
             logger.info(f"Cache hit for section '{section_type}'")

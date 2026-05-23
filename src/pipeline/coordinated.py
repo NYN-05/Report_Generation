@@ -349,6 +349,7 @@ class CoordinatedPipeline(BasePipeline):
                 )
                 ctx.output_path = output
                 self.logger.info(f"DOCX assembled: {output}")
+                self._convert_to_pdf(output)
             except Exception as e:
                 self.logger.warning(f"DOCX assembly via v2 failed: {e}, falling back")
                 self._ensure_document_state(ctx)
@@ -356,6 +357,19 @@ class CoordinatedPipeline(BasePipeline):
             self._ensure_document_state(ctx)
         self.logger.info("Document state assembled")
         return True
+
+    def _convert_to_pdf(self, docx_path: str):
+        pdf_path = docx_path.replace(".docx", ".pdf")
+        try:
+            from src.pipeline.export.pdf import PDFExportPipeline
+            pipeline = PDFExportPipeline()
+            result = pipeline.execute(docx_path, output_path=pdf_path)
+            if result.success:
+                self.logger.info(f"PDF created: {pdf_path}")
+            else:
+                logger.warning(f"PDF conversion skipped: {result.error}")
+        except Exception as e:
+            logger.warning(f"PDF conversion failed: {e}")
 
     def _ensure_document_state(self, ctx: PipelineContext):
         if ctx.document_state is None:
