@@ -34,6 +34,14 @@ from src.optimization.async_generation import AsyncGeneration
 from src.optimization.retrieval_cache import RetrievalCache
 from src.optimization.context_cache import ContextCache
 from src.document.blueprint.topic_blueprint_generator import TopicSpecificBlueprintGenerator
+from src.content import (
+    GenericContentDetector, TechnicalDepthEnhancer,
+    ParagraphQualityEngine, SectionSpecificWriter,
+    ContentTypeClassifier,
+    IterativeRefinementLoop, QualityGate,
+)
+from src.content.fact_driven_generator import FactDrivenParagraphGenerator
+from src.quality import EvidenceCoverageScore
 
 logger = get_logger(__name__)
 
@@ -76,6 +84,16 @@ class KnowledgeDrivenReportGenerator:
             provider=provider,
             context_assembler=context_assembler,
         )
+        self._research_cache = None
+        self._generic_detector = GenericContentDetector()
+        self._depth_enhancer = TechnicalDepthEnhancer()
+        self._para_quality = ParagraphQualityEngine()
+        self._section_writer = SectionSpecificWriter()
+        self._content_classifier = ContentTypeClassifier()
+        self._refinement_loop = IterativeRefinementLoop()
+        self._quality_gate = QualityGate()
+        self._evidence_coverage = EvidenceCoverageScore()
+        self._fact_driven_gen = FactDrivenParagraphGenerator()
 
     def research_phase(self, topic: str, chunks: List[Dict]) -> Dict[str, Any]:
         domain = self._domain_classifier.classify(topic)
@@ -92,6 +110,15 @@ class KnowledgeDrivenReportGenerator:
         kg = self._knowledge_graph_builder.build_from_chunks(valid_chunks)
         concept_map = self._concept_mapper.map_concepts_to_sections(kg)
         rels = self._relationship_extractor.extract_from_chunks(valid_chunks)
+        # Preserve structured objects so generate phase can reuse them
+        self._research_cache = {
+            "facts": facts,
+            "evidence_groups": evidence_groups,
+            "kg": kg,
+            "concept_map": concept_map,
+            "relationships": rels,
+            "valid_chunks": valid_chunks,
+        }
         return {
             "domain": domain,
             "research_plans": {k: v.to_dict() for k, v in research_plans.items()},
@@ -101,6 +128,8 @@ class KnowledgeDrivenReportGenerator:
             "knowledge_graph": kg.to_dict(),
             "concept_map": concept_map,
             "relationships": len(rels),
+            # Reference to preserved structured objects
+            "cache_key": "research_cache",
         }
 
     def generate_section(self, section_type: str, topic: str,
@@ -124,16 +153,15 @@ class KnowledgeDrivenReportGenerator:
             )
             metadata["evidence_status"] = "none"
             return section, metadata
-        domain_instruction = self._prompt_packs.get_system_instruction()
-        section_instruction = self._prompt_packs.get_section_instruction(section_type)
-        evidence_instruction = self._prompt_packs.get_evidence_instruction()
-        examples = self._example_retriever.retrieve(section_type, topic)
+
+        # Extract structured evidence (preserved and passed through, not discarded)
         facts = self._fact_extractor.extract_from_chunks(evidence_chunks)
         self._fact_memory.register_section_facts(facts, section_type)
         evidence_map = self._evidence_builder.build_claim_evidence_map(facts, section_type)
         citations = self._citation_mapper.map_facts_to_citations(facts, section_type)
         chapter_summaries = self._chapter_summaries.get_summary_texts()
-        hierarchical_context = self._hierarchical_memory.get_tier1_summary()
+
+        # Generate with structured evidence passed through
         section = self._existing_gen._writing_engine.generate_section(
             section_type=section_type,
             topic=topic,
@@ -142,30 +170,71 @@ class KnowledgeDrivenReportGenerator:
             evidence_chunks=evidence_chunks,
             previous_summary=previous_summary,
             existing_chapter_summaries=chapter_summaries,
+            facts=facts,
+            evidence_map=evidence_map,
+            citations=citations,
         )
         section, improve_logs = self._existing_gen._improver.improve(
             section, section_type, topic
         )
+
+        # --- Quality Enforcement Layer ---
+        section_text = section.to_text()
+
+        # 1. Fact-first compliance: check every paragraph originates from evidence
+        ev_coverage = self._evidence_coverage.score_section(section_text, evidence_chunks)
+        if ev_coverage["coverage"] < 0.8:
+            logger.warning(
+                f"Evidence coverage {ev_coverage['coverage']:.2f} below 0.8 for {section_type}"
+            )
+
+        # 2. Generic content detection
+        generic_check = self._generic_detector.detect(section_text, topic)
+        if not generic_check["passed"]:
+            logger.warning(
+                f"Generic filler detected in {section_type}: "
+                f"density {generic_check['filler_density']:.2f}"
+            )
+
+        # 3. Technical depth enforcement
+        depth_check = self._depth_enhancer.score(section_text)
+
+        # 4. Paragraph quality check
+        para_check = self._para_quality.score_section(section_text)
+
+        # 5. Section-specific validation
+        section_check = self._section_writer.validate(section_text, section_type)
+
+        # 6. Content type classification (for DOCX rendering)
+        classified_blocks = self._content_classifier.classify(section_text)
+
+        # Legacy scoring
         depth_score, depth_passed = self._depth_evaluator.evaluate_section(
-            section.to_text(), evidence_count=len(evidence_chunks),
+            section_text, evidence_count=len(evidence_chunks),
             section_type=section_type,
         )
         validation = self._validator.validate_section(section, section_type, topic)
-        tech_depth = self._tech_depth_score.score(section.to_text())
-        ev_score = self._evidence_score.score(section.to_text(), evidence_chunks)
-        coh_score = self._coherence_score.score(section.to_text())
-        aca_score = self._academic_score.score(section.to_text())
+        tech_depth = self._tech_depth_score.score(section_text)
+        ev_score = self._evidence_score.score(section_text, evidence_chunks)
+        coh_score = self._coherence_score.score(section_text)
+        aca_score = self._academic_score.score(section_text)
+
         quality_scores = {
             "technical_depth": depth_score.overall,
             "evidence_usage": depth_score.evidence_usage,
+            "evidence_coverage": ev_coverage["coverage"],
             "coherence": coh_score["overall"],
             "academic_tone": aca_score["overall"],
             "readability": depth_score.readability,
             "uniqueness": depth_score.uniqueness,
+            "filler_density": 1.0 - generic_check["filler_density"],
         }
+
         section, refinements = self._section_refiner.refine(
             section, section_type, topic, quality_scores
         )
+
+        # Store chapter summaries
         section_text = section.to_text()
         self._chapter_summaries.store(
             heading=section.heading,
@@ -181,6 +250,7 @@ class KnowledgeDrivenReportGenerator:
         self._context_cache.set(section_type, topic, {
             "section": section, "metadata": metadata
         })
+
         metadata.update({
             "depth_score": {
                 "overall": depth_score.overall, "relevance": depth_score.relevance,
@@ -193,8 +263,17 @@ class KnowledgeDrivenReportGenerator:
             },
             "tech_depth_score": tech_depth,
             "evidence_score": ev_score,
+            "evidence_coverage": ev_coverage,
             "coherence_score": coh_score,
             "academic_score": aca_score,
+            "filler_check": generic_check,
+            "depth_check": depth_check,
+            "paragraph_quality": para_check,
+            "section_compliance": section_check,
+            "classified_blocks": [
+                {"type": b.block_type.value, "text": b.text[:100]}
+                for b in classified_blocks[:10]
+            ],
             "evidence_citations": len(citations),
             "facts_used": len(facts),
             "refinements": [s.to_dict() for s in refinements],
@@ -238,6 +317,23 @@ class KnowledgeDrivenReportGenerator:
             })
             previous_summary = section.to_text()[:500]
         self._fact_memory.consolidate_duplicates()
+
+        # Quality Gate: compute overall scores across all sections
+        quality_scores = {}
+        for r in results:
+            md = r.get("metadata", {})
+            filler_ok = 1.0 - md.get("filler_check", {}).get("filler_density", 0.0)
+            quality_scores[r["section_type"]] = {
+                "technical_depth": md.get("depth_score", {}).get("overall", 0.0),
+                "evidence_score": md.get("evidence_score", {}).get("overall", 0.0),
+                "coherence_score": md.get("coherence_score", {}).get("overall", 0.0),
+                "academic_score": md.get("academic_score", {}).get("overall", 0.0),
+                "uniqueness_score": md.get("depth_score", {}).get("uniqueness", 0.0),
+                "formatting_score": 1.0 if md.get("section_compliance", {}).get("passed", True) else 0.5,
+                "filler_score": filler_ok,
+            }
+        quality_result = self._quality_gate.evaluate_sections(quality_scores)
+
         report_data = {
             "title": topic,
             "author": author,
@@ -256,6 +352,7 @@ class KnowledgeDrivenReportGenerator:
                 r.get("metadata", {}).get("validation", {}).get("passed", True)
                 for r in results
             ),
+            "quality_gate": quality_result,
             "total_facts": total_facts,
             "domain": self._domain_classifier.get_domain(),
             "knowledge_graph": self._knowledge_graph_builder.graph.to_dict(),
@@ -264,6 +361,15 @@ class KnowledgeDrivenReportGenerator:
             "fact_memory_stats": self._fact_memory.stats(),
             "retrieval_cache_stats": self._retrieval_cache.stats(),
         }
+
+        if not quality_result["all_passed"]:
+            logger.warning(
+                f"Quality Gate: {quality_result['weak_count']}/{quality_result['total_sections']} "
+                f"sections below threshold"
+            )
+            for ws in quality_result["weak_sections"]:
+                logger.warning(f"  Weak: {ws['section']} ({ws['overall']}/10)")
+
         logger.info(
             f"Knowledge-Driven Report: {report_data['section_count']} sections, "
             f"{report_data['total_words']} words, "

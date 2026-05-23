@@ -26,7 +26,8 @@ logger = get_logger("main")
 def run_coordinated(topic: str, output_path: str = "output/output.docx",
                     formats: Optional[list] = None,
                     phases: Optional[list] = None,
-                    use_provider: bool = True):
+                    use_provider: bool = True,
+                    web_search: bool = False):
     """Run the CoordinatedPipeline with optional phase selection."""
     logger.info(f"Coordinated pipeline for: {topic}")
     from src.pipeline import CoordinatedPipeline
@@ -42,29 +43,48 @@ def run_coordinated(topic: str, output_path: str = "output/output.docx",
         logger.warning("No LLM provider available — evidence-based mode still active")
 
     context_assembler = None
+    local_chunks = []
+    local_retriever = None
     try:
         from src.retrieval.context import ContextAssembler
         from src.retrieval.base import HybridRetriever
+        from src.retrieval.web import WebSearchRetriever, MultiSourceRetriever
         from src.ingestion.pipeline import IngestionPipeline
         import os
         knowledge_dir = os.path.join(os.path.dirname(__file__), "..", "knowledge")
         if os.path.isdir(knowledge_dir):
             ingest = IngestionPipeline()
             ingest.ingest_directory(knowledge_dir)
-            chunks = ingest.get_chunks()
-            if chunks:
-                retriever = HybridRetriever(
+            local_chunks = ingest.get_chunks()
+            if local_chunks:
+                local_retriever = HybridRetriever(
                     vector_store=ingest.store if ingest.store.is_available() else None
                 )
-                retriever.index_chunks(chunks)
-                context_assembler = ContextAssembler(retriever=retriever)
-                context_assembler.index_knowledge(chunks)
-                logger.info(
-                    f"ContextAssembler ready with {len(chunks)} knowledge chunks "
-                    f"from '{knowledge_dir}'"
-                )
+                local_retriever.index_chunks(local_chunks)
         else:
             logger.warning("No knowledge directory found at 'knowledge/'")
+
+        if web_search and not os.environ.get("TAVILY_API_KEY"):
+            logger.warning(
+                "--web-search set but TAVILY_API_KEY not found. "
+                "Set TAVILY_API_KEY env var to enable."
+            )
+
+        if web_search:
+            web_retriever = WebSearchRetriever()
+            retriever = MultiSourceRetriever(local_retriever, web_retriever) if local_retriever else web_retriever
+            logger.info("Web search enabled")
+        else:
+            retriever = local_retriever
+
+        if retriever:
+            context_assembler = ContextAssembler(retriever=retriever)
+            if local_chunks:
+                context_assembler.index_knowledge(local_chunks)
+            logger.info(
+                f"ContextAssembler ready "
+                f"({'web + ' if web_search else ''}{len(local_chunks)} knowledge chunks)"
+            )
     except Exception as e:
         logger.warning(f"Context assembler init skipped: {e}")
 
@@ -298,7 +318,13 @@ def main():
         default='docx',
         help='Export format(s): docx, pdf (default: docx)'
     )
-    
+
+    parser.add_argument(
+        '--web-search',
+        action='store_true',
+        help='Enable internet search (requires TAVILY_API_KEY env var)'
+    )
+
     args = parser.parse_args()
     
     if args.status:
@@ -329,6 +355,7 @@ def main():
                 output_path=args.output,
                 formats=args.format.split(","),
                 phases=args.phases.split(",") if args.phases else None,
+                web_search=args.web_search,
             )
         else:
             run_with_topic(args.topic, rules_path=args.rules, use_llm=args.use_llm,

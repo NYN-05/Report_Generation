@@ -36,6 +36,9 @@ class AcademicWritingEngine:
         evidence_chunks: Optional[List[Dict]] = None,
         previous_summary: str = "",
         existing_chapter_summaries: Optional[List[str]] = None,
+        facts: Optional[List] = None,
+        evidence_map: Optional[Dict] = None,
+        citations: Optional[List] = None,
     ) -> SectionContent:
         if not retrieval_context and not evidence_chunks:
             return self._generate_no_evidence_section(section_type, topic)
@@ -43,7 +46,7 @@ class AcademicWritingEngine:
         prompt = self._build_section_prompt(
             section_type, topic, report_type,
             retrieval_context, evidence_chunks, previous_summary,
-            existing_chapter_summaries,
+            existing_chapter_summaries, facts, evidence_map, citations,
         )
 
         if self._provider and self._provider.is_available():
@@ -64,6 +67,9 @@ class AcademicWritingEngine:
         evidence_chunks: Optional[List[Dict]],
         previous_summary: str,
         existing_chapter_summaries: Optional[List[str]] = None,
+        facts: Optional[List] = None,
+        evidence_map: Optional[Dict] = None,
+        citations: Optional[List] = None,
     ) -> str:
         from .prompt_builder_v2 import PromptBuilderV2
         builder = PromptBuilderV2()
@@ -74,6 +80,9 @@ class AcademicWritingEngine:
             retrieval_context=retrieval_context,
             previous_section_summary=previous_summary,
             existing_chapter_summaries=existing_chapter_summaries,
+            facts=facts,
+            evidence_map=evidence_map,
+            citations=citations,
         )
 
     def _generate_with_llm(self, prompt: str) -> str:

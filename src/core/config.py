@@ -16,6 +16,33 @@ from .constants import DEFAULT_MODEL, DEFAULT_SKILLS_DIR, DEFAULT_TEMPLATES_DIR
 logger = get_logger(__name__)
 
 
+def _load_dotenv(dotenv_path: Optional[str] = None):
+    """Load .env file into os.environ without requiring python-dotenv."""
+    path = Path(dotenv_path or ".env")
+    if not path.exists():
+        alt = Path(__file__).parent.parent.parent / ".env"
+        if alt.exists():
+            path = alt
+        else:
+            return
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, val = line.partition("=")
+            key = key.strip()
+            val = val.strip().strip("\"'")
+            if key and key not in os.environ:
+                os.environ[key] = val
+        logger.info(f"Loaded environment from {path}")
+    except Exception as e:
+        logger.debug(f".env load skipped: {e}")
+
+
+_load_dotenv()
+
+
 @dataclass
 class ProviderConfig:
     """LLM provider configuration."""
@@ -63,6 +90,17 @@ class LoggingConfig:
 
 
 @dataclass
+class SearchConfig:
+    """Web search configuration."""
+    enabled: bool = False
+    provider: str = "tavily"
+    api_key: str = ""
+    api_url: str = "https://api.tavily.com/search"
+    max_results: int = 5
+    results_per_section: int = 3
+
+
+@dataclass
 class SystemConfig:
     """System configuration."""
     check_dependencies: bool = True
@@ -80,6 +118,7 @@ class AppConfig:
     export: ExportConfig = field(default_factory=ExportConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     system: SystemConfig = field(default_factory=SystemConfig)
+    search: SearchConfig = field(default_factory=SearchConfig)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -89,6 +128,7 @@ class AppConfig:
             "export": self.export.__dict__,
             "logging": self.logging.__dict__,
             "system": self.system.__dict__,
+            "search": self.search.__dict__,
         }
 
     @classmethod
@@ -100,6 +140,7 @@ class AppConfig:
             export=ExportConfig(**data.get("export", {})),
             logging=LoggingConfig(**data.get("logging", {})),
             system=SystemConfig(**data.get("system", {})),
+            search=SearchConfig(**data.get("search", {})),
         )
 
 
@@ -152,6 +193,11 @@ class ConfigManager:
             cls._config.provider.host = host
         if skills_dir := os.environ.get("SKILLS_DIR"):
             cls._config.skills.directory = skills_dir
+        if api_key := os.environ.get("TAVILY_API_KEY"):
+            cls._config.search.api_key = api_key
+            cls._config.search.enabled = True
+        if api_url := os.environ.get("SEARCH_API_URL"):
+            cls._config.search.api_url = api_url
 
     @classmethod
     def get(cls) -> AppConfig:

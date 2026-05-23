@@ -26,7 +26,7 @@ from src.core.errors import RecoverableError, PhaseError
 logger = get_logger(__name__)
 
 
-PHASE_ORDER = ["plan", "research", "knowledge", "generate", "review", "validate", "refine", "assemble_doc", "export"]
+PHASE_ORDER = ["plan", "research", "knowledge", "generate", "review", "validate", "refine", "assemble_doc", "quality_gate", "export"]
 
 ALL_PHASES = set(PHASE_ORDER)
 
@@ -187,6 +187,7 @@ class CoordinatedPipeline(BasePipeline):
             "validate": self._run_validate,
             "refine": self._run_refine,
             "assemble_doc": self._run_assemble_doc,
+            "quality_gate": self._run_quality_gate,
             "export": self._run_export,
         }
         if allowed:
@@ -396,6 +397,24 @@ class CoordinatedPipeline(BasePipeline):
             ctx.document_state = DocumentState(title=ctx.topic)
         if ctx.memory_hub and hasattr(ctx.memory_hub, "get_status"):
             ctx.document_state.style_profile = ctx.memory_hub.get_status().get("style_profile", {})
+
+    def _run_quality_gate(self, ctx: PipelineContext) -> bool:
+        report = ctx.metadata.get("report", {})
+        quality_gate = report.get("quality_gate")
+        if not quality_gate:
+            self.logger.info("No quality gate data — skipping")
+            return True
+        if quality_gate.get("all_passed"):
+            self.logger.info("Quality Gate PASSED — all sections meet threshold")
+            return True
+        weak = quality_gate.get("weak_sections", [])
+        self.logger.warning(
+            f"Quality Gate: {len(weak)} weak section(s) below {quality_gate.get('sections', {}).get(list, {}).get('target', 8.5)}"
+        )
+        for ws in weak:
+            self.logger.warning(f"  Section '{ws['section']}': {ws['overall']}/10")
+        ctx.errors.append(f"quality_gate: {len(weak)} weak sections")
+        return True
 
     def _run_export(self, ctx: PipelineContext) -> bool:
         try:

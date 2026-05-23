@@ -64,6 +64,9 @@ class PromptBuilderV2:
         citation_instructions: str = "",
         target_words: int = 500,
         existing_chapter_summaries: Optional[List[str]] = None,
+        facts: Optional[List] = None,
+        evidence_map: Optional[Dict] = None,
+        citations: Optional[List] = None,
         **extra_vars,
     ) -> str:
         structure = self.SECTION_STRUCTURES.get(section_type, {})
@@ -146,11 +149,60 @@ class PromptBuilderV2:
             "=" * 60,
         ])
 
+        if facts:
+            prompt_parts.extend([
+                "",
+                "=" * 60,
+                "STRUCTURED FACTS FROM EVIDENCE (PRIMARY SOURCE OF CLAIMS)",
+                "=" * 60,
+                "Each fact below was extracted from source documents with a confidence score.",
+                "You MUST base every claim on these facts. Do NOT invent claims outside these facts.\n",
+            ])
+            for i, fact in enumerate(facts):
+                f_text = getattr(fact, "text", str(fact))
+                f_conf = getattr(fact, "confidence", 0.5)
+                f_cat = getattr(fact, "category", "general")
+                prompt_parts.append(f"FACT {i+1} [confidence: {f_conf}, category: {f_cat}]")
+                prompt_parts.append(f"  {f_text[:200]}")
+                prompt_parts.append("")
+
+        if evidence_map:
+            prompt_parts.extend([
+                "=" * 60,
+                "CLAIM-EVIDENCE MAP",
+                "=" * 60,
+                "The following claims are directly supported by the extracted facts.\n",
+            ])
+            for claim, mapped_facts in list(evidence_map.items())[:10]:
+                prompt_parts.append(f"Claim: {claim[:150]}")
+                for mf in mapped_facts[:3]:
+                    mf_text = getattr(mf, "text", str(mf))[:120]
+                    prompt_parts.append(f"  → Supported by: {mf_text}")
+                prompt_parts.append("")
+
+        if citations:
+            prompt_parts.extend([
+                "=" * 60,
+                "STRUCTURED CITATIONS",
+                "=" * 60,
+                "Use these citation indices when referencing evidence from sources.\n",
+            ])
+            for i, cit in enumerate(citations):
+                cit_str = str(cit)[:150]
+                prompt_parts.append(f"  [{i+1}] {cit_str}")
+
+        prompt_parts.extend([
+            "",
+            "=" * 60,
+            "RETRIEVED EVIDENCE",
+            "=" * 60,
+        ])
+
         if retrieval_context:
             prompt_parts.append(
                 "The following evidence was retrieved from uploaded documents. "
                 "You MUST use this evidence to support every claim. "
-                "Do NOT invent statistics, performance values, accuracy percentages, "
+                "Do NOT invent statistics, percentages, performance metrics, "
                 "datasets, or references not found in this evidence.\n"
             )
             prompt_parts.append(retrieval_context)
@@ -190,6 +242,24 @@ class PromptBuilderV2:
         prompt_parts.extend([
             "",
             "=" * 60,
+            "FACT-FIRST WRITING MANDATE (CRITICAL)",
+            "=" * 60,
+            "Workflow for EVERY paragraph:",
+            "  1. Select a FACT from the structured facts above",
+            "  2. Explain what the fact means in context",
+            "  3. Analyze its significance",
+            "  4. Transition to the next fact-driven paragraph",
+            "",
+            "DO NOT:",
+            "  - Write a paragraph starting from the topic (topic-first writing is forbidden)",
+            "  - Use topic-insertion patterns like 'The application of [Topic] in [Field]'",
+            "  - Begin with 'This section discusses...' or 'This chapter presents...'",
+            "  - Repeat the same fact across multiple paragraphs",
+            "  - Invent facts, statistics, or references not in the provided facts",
+            "",
+            "If a paragraph does not originate from at least one FACT above, it will be rejected.",
+            "",
+            "=" * 60,
             "STYLE REQUIREMENTS",
             "=" * 60,
             "- IEEE academic tone throughout",
@@ -198,7 +268,7 @@ class PromptBuilderV2:
             "- No marketing language (no \"cutting-edge\", \"robust\", \"seamless\", \"game-changer\")",
             "- No generic filler or shallow statements",
             "- Each paragraph must have: core idea, explanation, supporting detail, analysis, transition",
-            "- Minimum 120 words per paragraph, maximum 250 words",
+            "- Minimum 150 words per paragraph, maximum 300 words",
             "- Average sentence length: 15-25 words",
             "- Use domain-specific terminology appropriately",
             "- Forbidden phrases (meaningless unless followed by specific evidence):",
@@ -206,6 +276,13 @@ class PromptBuilderV2:
             '  "This topic has gained significant attention."',
             '  "Research indicates many benefits."',
             '  "Various studies have shown improvements."',
+            '  "This field is rapidly growing."',
+            '  "Many researchers have focused on."',
+            '  "Current trends demonstrate."',
+            '  "It is important to note/consider/understand."',
+            '  "Over the past few years/decades."',
+            '  "A wide range of."',
+            '  "There are many/several/various ways/approaches."',
             "",
             "=" * 60,
             "FORMATTING REQUIREMENTS",
@@ -240,16 +317,19 @@ class PromptBuilderV2:
             "=" * 60,
             "EVIDENCE USAGE RULES",
             "=" * 60,
-            "RULE 1: Every major claim MUST trace back to retrieved evidence",
-            "RULE 2: Never invent statistics, percentages, or performance metrics",
-            "RULE 3: Never invent citations or references to papers not in evidence",
-            "RULE 4: Never invent dataset names or sizes",
-            "RULE 5: If evidence is missing a necessary fact, write:",
+            "RULE 1: Every paragraph MUST reference at least one FACT by number (FACT 1, FACT 2, etc.)",
+            "RULE 2: Every major claim MUST trace directly to an extracted fact above",
+            "RULE 3: Never invent statistics, percentages, or performance metrics",
+            "RULE 4: Never invent citations or references to papers not in evidence",
+            "RULE 5: Never invent dataset names or sizes",
+            "RULE 6: If evidence is missing a necessary fact, write:",
             '     "Insufficient source material available for this claim."',
-            "RULE 6: All technical claims must cite the source document",
-            "RULE 7: Never write topic-name-replacement templates",
+            "RULE 7: All technical claims must cite the source document",
+            "RULE 8: Never write topic-name-replacement templates",
             "     Bad: 'This section discusses the applications of [Topic] in [Domain].'",
             '     Good: "The application of random forest classifiers for detecting anomalous network traffic patterns has been extensively documented."',
+            "RULE 9: Never repeat the same fact across multiple paragraphs — each fact used once",
+            "RULE 10: Information density per paragraph must be high — every sentence should add value",
             "",
             "=" * 60,
             "OUTPUT FORMAT",

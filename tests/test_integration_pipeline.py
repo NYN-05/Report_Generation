@@ -370,7 +370,7 @@ class TestCoordinatedPipeline:
 
     def test_phases_constant(self):
         from src.pipeline.coordinated import PHASE_ORDER, ALL_PHASES
-        assert len(PHASE_ORDER) == 9
+        assert len(PHASE_ORDER) == 10
         assert ALL_PHASES == set(PHASE_ORDER)
         assert "review" in ALL_PHASES
 
