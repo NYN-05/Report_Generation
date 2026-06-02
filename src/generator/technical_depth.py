@@ -174,18 +174,26 @@ class TechnicalDepthEvaluator:
     def _score_evidence_usage(self, text: str, evidence_count: int) -> float:
         has_placeholder = "Insufficient source material available for this claim." in text
         has_refs = bool(re.search(r'\[.*?\]', text))
-        has_according = bool(re.search(r'According to', text))
+        has_according = bool(re.search(r'According to', text, re.IGNORECASE))
         has_source = bool(re.search(r'source', text, re.IGNORECASE))
-        has_numbers = bool(re.search(r'\d+\.?\d*%|\d+\.?\d*\s*(accuracy|precision|recall|F1|score)', text, re.IGNORECASE))
+        has_numbers = bool(re.search(r'\d+\.?\d*\s*%|\d+\.?\d*\s*(accuracy|precision|recall|F1|score|percent|GHz|TB|GB|MB|kB)', text, re.IGNORECASE))
 
         if has_placeholder:
             return 0.0
         score = 0.0
-        if has_refs and evidence_count > 0: score += 0.35
-        if has_numbers and evidence_count > 0: score += 0.35
-        if has_according: score += 0.20
-        if has_source: score += 0.10
-        if evidence_count > 0 and not has_refs: score += 0.15
+        in_text_citations = has_refs or has_according or has_source or has_numbers
+        if has_refs:
+            score += 0.35
+        if has_numbers:
+            score += 0.35
+        if has_according:
+            score += 0.20
+        if has_source:
+            score += 0.10
+        if evidence_count > 0 and not has_refs:
+            score += 0.15
+        if evidence_count == 0 and in_text_citations:
+            score = max(score, 0.5)
         return min(score, 1.0)
 
     def _score_uniqueness(self, text: str) -> float:

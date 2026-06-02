@@ -6,6 +6,7 @@ or alignment values.
 """
 
 import os
+import re
 from typing import Dict, Any, Optional, List
 from src.core.logger import get_logger
 from src.generator.content_blocks import (
@@ -16,6 +17,22 @@ from src.generator.content_blocks import (
 from src.document.styles import StyleManager, DocumentStyleValidator
 
 logger = get_logger(__name__)
+
+# Control characters to strip from LLM output (except common whitespace)
+_CONTROL_CHARS = re.compile(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]')
+_MAX_TEXT_LENGTH = 50000  # Max characters per text run
+
+
+def sanitize_text(text: str, max_length: int = _MAX_TEXT_LENGTH) -> str:
+    """Sanitize LLM-generated text for safe DOCX insertion.
+    
+    Strips control characters, enforces max length, and normalizes whitespace.
+    """
+    if not text:
+        return ""
+    text = _CONTROL_CHARS.sub('', text)
+    text = text[:max_length]
+    return text
 
 try:
     from docx import Document
@@ -114,7 +131,7 @@ class DOCXV2Generator:
     def _render_paragraph(self, block: ParagraphBlock):
         if not block.text.strip():
             return
-        text = block.text.strip()
+        text = sanitize_text(block.text.strip())
         p = self._doc.add_paragraph()
         self._styles.apply_paragraph_style(p, self._styles.get_styles().content)
         run = p.add_run(text)

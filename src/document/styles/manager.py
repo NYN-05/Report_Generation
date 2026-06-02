@@ -2,8 +2,12 @@
 Style Manager Module
 ===================
 Manages styles and style preservation.
+
+DEPRECATED: Use src.document.styles.style_manager.StyleManager instead.
+This module exists only for backward compatibility.
 """
 
+import warnings
 from typing import Dict, Any, Optional, List
 from docx import Document
 from docx.shared import Pt, RGBColor
@@ -12,12 +16,26 @@ from src.core.logger import get_logger
 
 logger = get_logger(__name__)
 
+warnings.warn(
+    "src.document.styles.manager is deprecated. Use src.document.styles.style_manager instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 
 class StyleManager:
-    """Manages document styles and formatting."""
+    """Manages document styles and formatting.
+    
+    DEPRECATED: Use style_manager.StyleManager (singleton) instead.
+    """
 
     def __init__(self, document: Document = None):
         self.document = document
+        warnings.warn(
+            "StyleManager(document=...) is deprecated. Use StyleManager.get_instance() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
     def preserve_styles(self, source_path: str, target_path: str) -> bool:
         """Copy styles from source to target document."""
