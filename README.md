@@ -118,7 +118,6 @@ report_generation/
 │   ├── document/                # Document generation & formatting
 │   │   ├── builder.py           # DocumentBuilder
 │   │   ├── docx_v2_generator.py # Main DOCX generator (uses StyleManager)
-│   │   ├── doc_generator.py     # Legacy DOCX generator
 │   │   ├── blueprint/           # BlueprintBuilder, models
 │   │   ├── styles/              # Centralized formatting (single source of truth)
 │   │   │   ├── document_styles.py   # Dataclass definitions
