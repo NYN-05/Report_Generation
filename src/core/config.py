@@ -13,6 +13,8 @@ from dataclasses import dataclass, field
 from .logger import get_logger
 from .constants import DEFAULT_MODEL, DEFAULT_SKILLS_DIR, DEFAULT_TEMPLATES_DIR
 
+_MAX_YAML_SIZE = 10 * 1024 * 1024  # 10MB max config file
+
 logger = get_logger(__name__)
 
 
@@ -46,6 +48,7 @@ _load_dotenv()
 @dataclass
 class ProviderConfig:
     """LLM provider configuration."""
+    max_concurrent_sections: int = 4
     name: str = "ollama"
     model: str = DEFAULT_MODEL
     host: str = "http://localhost:11434"
@@ -163,7 +166,11 @@ class ConfigManager:
 
         if cls._config_path.exists():
             try:
-                data = yaml.safe_load(cls._config_path.read_text(encoding="utf-8"))
+                size = cls._config_path.stat().st_size
+                if size > _MAX_YAML_SIZE:
+                    raise ValueError(f"Config file too large: {size} bytes (max {_MAX_YAML_SIZE})")
+                raw = cls._config_path.read_text(encoding="utf-8")
+                data = yaml.load(raw, Loader=yaml.SafeLoader)
                 cls._config = AppConfig.from_dict(data)
                 logger.info(f"Loaded configuration from {cls._config_path}")
             except Exception as e:

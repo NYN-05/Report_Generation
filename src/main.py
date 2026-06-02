@@ -6,9 +6,10 @@ Unified entry point for the report generation platform.
 
 import os
 import sys
+import signal
 import argparse
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List, Dict
 
 # Add parent to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -21,6 +22,103 @@ from src.memory import ContextManager, ReportHistory
 
 
 logger = get_logger("main")
+
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_shutdown_requested = False
+
+
+def _signal_handler(signum, frame):
+    """Handle graceful shutdown on SIGTERM/SIGINT."""
+    global _shutdown_requested
+    if _shutdown_requested:
+        logger.warning("Forced exit")
+        sys.exit(1)
+    _shutdown_requested = True
+    logger.warning(f"Received signal {signum}, shutting down gracefully...")
+    print("\n[INFO] Shutdown requested. Finishing current operation...")
+
+
+def _setup_signal_handlers():
+    """Install signal handlers for graceful shutdown."""
+    signal.signal(signal.SIGTERM, _signal_handler)
+    try:
+        signal.signal(signal.SIGINT, _signal_handler)
+    except (ValueError, AttributeError):
+        pass  # SIGINT not available on all platforms
+
+
+def health_check() -> Dict:
+    """Perform system health check and return status dict."""
+    status = {"status": "ok", "checks": {}}
+    try:
+        deps = config.check_dependencies()
+        status["checks"]["dependencies"] = {
+            k: "available" if v else "missing" for k, v in deps.items()
+        }
+        critical = ["python-docx"]
+        missing_critical = [d for d in critical if not deps.get(d)]
+        if missing_critical:
+            status["status"] = "degraded"
+            status["checks"]["critical_missing"] = missing_critical
+
+        import shutil
+        output_disk = shutil.disk_usage("output") if os.path.isdir("output") else None
+        if output_disk:
+            free_gb = output_disk.free / (1024 ** 3)
+            status["checks"]["disk"] = {
+                "free_gb": round(free_gb, 1),
+                "healthy": free_gb > 0.5,
+            }
+            if free_gb < 0.5:
+                status["status"] = "degraded"
+
+        log_dir = Path("logs")
+        if log_dir.exists():
+            log_files = list(log_dir.glob("*.log"))
+            log_age_days = {}
+            for f in log_files:
+                try:
+                    mtime = f.stat().st_mtime
+                    import time
+                    age = (time.time() - mtime) / 86400
+                    log_age_days[f.name] = round(age, 1)
+                except OSError:
+                    pass
+            status["checks"]["logs"] = {
+                "count": len(log_files),
+                "oldest_days": max(log_age_days.values()) if log_age_days else 0,
+            }
+
+        status["checks"]["project"] = {
+            "root": str(_PROJECT_ROOT),
+            "requirements_exists": Path("requirements.txt").exists(),
+            "knowledge_files": len(list(_PROJECT_ROOT.glob("knowledge/*.*"))),
+        }
+    except Exception as e:
+        status["status"] = "error"
+        status["error"] = str(e)
+    return status
+
+
+def _resolve_safe_path(user_path: str, allowed_parent: Optional[Path] = None) -> Optional[str]:
+    """Resolve and validate a file path, preventing directory traversal.
+    
+    Ensures the resolved path stays within the allowed parent directory.
+    Returns None if the path is invalid or traverses outside allowed bounds.
+    """
+    if not user_path:
+        return None
+    try:
+        resolved = Path(user_path).resolve()
+        parent = allowed_parent or _PROJECT_ROOT
+        parent = Path(parent).resolve()
+        if parent not in resolved.parents and resolved != parent:
+            logger.warning(f"Path traversal blocked: {user_path} -> {resolved} (outside {parent})")
+            return None
+        return str(resolved)
+    except (ValueError, OSError, RuntimeError) as e:
+        logger.warning(f"Path resolution failed for {user_path}: {e}")
+        return None
 
 
 def run_coordinated(topic: str, output_path: str = "output/output.docx",
@@ -51,8 +149,11 @@ def run_coordinated(topic: str, output_path: str = "output/output.docx",
         from src.retrieval.web import WebSearchRetriever, MultiSourceRetriever
         from src.ingestion.pipeline import IngestionPipeline
         import os
-        knowledge_dir = os.path.join(os.path.dirname(__file__), "..", "knowledge")
-        if os.path.isdir(knowledge_dir):
+        # Resolve knowledge_dir relative to project root with path traversal protection
+        project_root = Path(__file__).resolve().parent.parent
+        knowledge_dir = str(project_root / "knowledge")
+        knowledge_dir = _resolve_safe_path(knowledge_dir)
+        if knowledge_dir and os.path.isdir(knowledge_dir):
             ingest = IngestionPipeline()
             ingest.ingest_directory(knowledge_dir)
             local_chunks = ingest.get_chunks()
@@ -132,6 +233,15 @@ def run_with_topic(topic: str, rules_path: Optional[str] = None,
     logger.info(f"Starting report generation for: {topic}")
     
     try:
+        # Validate knowledge_dir path
+        safe_knowledge_dir = None
+        if knowledge_dir:
+            safe_knowledge_dir = _resolve_safe_path(knowledge_dir)
+            if safe_knowledge_dir is None:
+                logger.error(f"Invalid knowledge_dir path (blocked traversal): {knowledge_dir}")
+                print(f"\n[ERROR] Invalid knowledge directory path")
+                return False
+        
         # Step 1: Initialize orchestrator with LLM
         logger.info("Initializing orchestrator...")
         orchestrator = OrchestratorAgent()
@@ -160,7 +270,7 @@ def run_with_topic(topic: str, rules_path: Optional[str] = None,
         logger.info("Generating Word document...")
         gen_pipeline = ScratchPipeline(
             rules_path=rules_path, use_llm=use_llm,
-            knowledge_dir=knowledge_dir,
+            knowledge_dir=safe_knowledge_dir,
             enable_review=not skip_review,
         )
         doc_result = gen_pipeline.execute(content)
@@ -326,6 +436,8 @@ def main():
     )
 
     args = parser.parse_args()
+    
+    _setup_signal_handlers()
     
     if args.status:
         show_status()

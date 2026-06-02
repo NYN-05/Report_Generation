@@ -68,3 +68,8 @@ coverage.xml
 # --- Documents ---
 *.pdf
 *.docx
+
+memory_hub_state.json
+*.bak
+*.pdf
+output/
