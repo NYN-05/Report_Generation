@@ -137,14 +137,26 @@ class TestContextAssembler:
 
     def test_token_budget(self):
         from src.retrieval import ContextAssembler
+        from src.retrieval.context import count_tokens
+
         ca = ContextAssembler(max_tokens=100)
+        # Generate text of exactly known token count
+        token = " intelligence"
+        token_count = count_tokens(token)
+        # Build chunks that exceed budget
+        many_tokens = token * 200  # ~200 tokens per chunk
         results = [
-            {"text": "A" * 1000},
-            {"text": "B" * 1000},
+            {"text": many_tokens},
+            {"text": many_tokens},
         ]
         budgeted = ca._apply_token_budget(results)
-        total_chars = sum(len(r.get("text", "")) for r in budgeted)
-        assert total_chars <= 100 * 4
+        total_tokens = sum(count_tokens(r.get("text", "")) for r in budgeted)
+        # Account for overhead_per_chunk=50 tokens
+        max_expected = 100 + len(budgeted) * 50
+        assert total_tokens <= max_expected
+        # With 2 chunks of ~200 tokens + 50 overhead each (500 total),
+        # at most 1 chunk should fit in 100-token budget
+        assert len(budgeted) == 1
 
     def test_format_context(self):
         from src.retrieval import ContextAssembler

@@ -11,6 +11,64 @@ from docx.shared import Inches, Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 
+class MockProvider:
+    """Mock LLM provider for deterministic testing without Ollama."""
+
+    def __init__(self, model="mock-model", temperature=0.7, top_p=0.9, timeout=120):
+        self.model = model
+        self.temperature = temperature
+        self.top_p = top_p
+        self.timeout = timeout
+        self._available = True
+        self.chat_history = []
+
+    def is_available(self):
+        return self._available
+
+    def set_available(self, available: bool):
+        self._available = available
+
+    def chat(self, messages, options=None):
+        from src.providers.base import LLMResponse
+        self.chat_history.append(messages)
+        return LLMResponse(
+            content='{"title": "Mock Report", "sections": [{"heading": "Mock", "content": "Mock content."}]}',
+            model=self.model,
+        )
+
+    def generate(self, prompt, options=None):
+        from src.providers.base import LLMResponse
+        return LLMResponse(
+            content="Mock generated content for testing purposes.",
+            model=self.model,
+        )
+
+    def prepare_messages(self, system, user):
+        from src.providers.base import Message
+        return [Message(role="system", content=system), Message(role="user", content=user)]
+
+    def get_provider_type(self):
+        from src.providers.base import ProviderType
+        return ProviderType.OLLAMA
+
+    def __repr__(self):
+        return f"MockProvider(model={self.model})"
+
+
+@pytest.fixture
+def mock_provider():
+    """Fixture providing a MockProvider instance."""
+    return MockProvider()
+
+
+@pytest.fixture
+def mock_provider_unavailable():
+    """Fixture providing an unavailable MockProvider."""
+    p = MockProvider()
+    p.set_available(False)
+    return p
+
+
 @pytest.fixture
 def sample_docx():
     doc = Document()
