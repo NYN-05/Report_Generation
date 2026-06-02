@@ -1,13 +1,32 @@
 from typing import List, Optional
 from src.core.logger import get_logger
+import threading
 
 logger = get_logger(__name__)
 
 
 class EmbeddingProvider:
     """Interface for generating text embeddings."""
+    
+    # Singleton pattern implementation
+    _instance = None
+    _lock = threading.Lock()
+    _initialized = False
+
+    def __new__(cls, model: str = "nomic-embed-text"):
+        with cls._lock:
+            if cls._instance is None:
+                cls._instance = super(EmbeddingProvider, cls).__new__(cls)
+                cls._instance._initialized = False
+            return cls._instance
 
     def __init__(self, model: str = "nomic-embed-text"):
+        # Prevent multiple initialization
+        with self._lock:
+            if self._initialized:
+                return
+            self._initialized = True
+            
         self.model = model
         self._client = None
         self._available = False

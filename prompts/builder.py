@@ -20,6 +20,35 @@ logger = get_logger(__name__)
 _here = os.path.dirname(os.path.abspath(__file__))
 _TEMPLATE_DIR = os.path.join(os.path.dirname(_here), "prompts")
 
+_PROMPT_VERSION = "2.0.0"
+_PROMPT_VERSION_HISTORY = {
+    "1.0.0": "Initial prompt templates",
+    "2.0.0": "Added evidence-first instruction, strict no-hallucination enforcement, citation grounding",
+}
+
+_SECTION_VERSIONS = {
+    "abstract": "2.0.0",
+    "introduction": "2.0.0",
+    "literature_review": "2.0.0",
+    "methodology": "2.0.0",
+    "implementation": "2.0.0",
+    "results": "2.0.0",
+    "discussion": "2.0.0",
+    "conclusion": "2.0.0",
+}
+
+
+def get_prompt_version() -> str:
+    return _PROMPT_VERSION
+
+
+def get_prompt_version_history() -> dict:
+    return dict(_PROMPT_VERSION_HISTORY)
+
+
+def get_section_prompt_versions() -> dict:
+    return dict(_SECTION_VERSIONS)
+
 
 class PromptBuilder:
     """Builds section-specific prompts from Jinja2 templates.
@@ -102,6 +131,7 @@ class PromptBuilder:
         **extra_vars,
     ) -> str:
         template_name = self.SECTION_TEMPLATES[section_type]
+        section_version = _SECTION_VERSIONS.get(section_type, _PROMPT_VERSION)
         try:
             template = self._env.get_template(template_name)
             return template.render(
@@ -112,6 +142,7 @@ class PromptBuilder:
                 chapter_summary=chapter_summary,
                 citation_instructions=citation_instructions,
                 style_profile=style_profile or {},
+                prompt_version=section_version,
                 **extra_vars,
             )
         except Exception as e:

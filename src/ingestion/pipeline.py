@@ -1,3 +1,4 @@
+import hashlib
 from typing import List, Dict, Optional
 from .parser import DocumentParser
 from .chunker import SemanticChunker
@@ -18,11 +19,20 @@ class IngestionPipeline:
         self.embeddings = EmbeddingProvider()
         self.store = VectorStore(collection_name=collection_name, persist_dir=persist_dir)
         self._ingested_chunks: List[Dict] = []
+        self._content_hashes: set = set()
+
+    def _content_hash(self, text: str) -> str:
+        return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
     def ingest_file(self, filepath: str) -> int:
         text = self.parser.parse(filepath)
         if not text:
             return 0
+        content_hash = self._content_hash(text)
+        if content_hash in self._content_hashes:
+            logger.info(f"Skipping already ingested file: {filepath}")
+            return 0
+        self._content_hashes.add(content_hash)
         chunks = self.chunker.chunk(text, source=filepath)
         if self.embeddings.is_available():
             chunks = self.embeddings.embed_chunks(chunks)
@@ -35,6 +45,11 @@ class IngestionPipeline:
         docs = self.parser.parse_directory(dirpath)
         total = 0
         for doc in docs:
+            content_hash = self._content_hash(doc["text"])
+            if content_hash in self._content_hashes:
+                logger.info(f"Skipping already ingested: {doc['filename']}")
+                continue
+            self._content_hashes.add(content_hash)
             chunks = self.chunker.chunk(doc["text"], source=doc["filename"])
             if self.embeddings.is_available():
                 chunks = self.embeddings.embed_chunks(chunks)

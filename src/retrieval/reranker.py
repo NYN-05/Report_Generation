@@ -15,9 +15,43 @@ Requirements:
 import hashlib
 import threading
 from typing import List, Dict, Optional, Callable
+from collections import OrderedDict
 from src.core.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+class LRUCache:
+    """Thread-safe LRU cache with max size."""
+
+    def __init__(self, maxsize: int = 512):
+        self._data = OrderedDict()
+        self._maxsize = maxsize
+        self._lock = threading.Lock()
+
+    def get(self, key: str) -> Optional[float]:
+        with self._lock:
+            if key in self._data:
+                self._data.move_to_end(key)
+                return self._data[key]
+            return None
+
+    def put(self, key: str, value: float):
+        with self._lock:
+            if key in self._data:
+                self._data.move_to_end(key)
+            self._data[key] = value
+            while len(self._data) > self._maxsize:
+                self._data.popitem(last=False)
+
+    @property
+    def size(self) -> int:
+        with self._lock:
+            return len(self._data)
+
+    def clear(self):
+        with self._lock:
+            self._data.clear()
 
 
 class Reranker:
@@ -27,7 +61,7 @@ class Reranker:
         - Lazy loading (model loaded on first use via load_model())
         - GPU support with CPU fallback
         - Batch scoring
-        - Result caching
+        - Result caching with LRU eviction
         - Configurable score calibration [0.0, 1.0]
         - Graceful fallback to keyword overlap when model unavailable
     """
@@ -38,7 +72,7 @@ class Reranker:
         self._model = None
         self._available = False
         self._lock = threading.Lock()
-        self._cache: Dict[str, float] = {}
+        self._cache = LRUCache(maxsize=cache_size)
         self._cache_size = cache_size
         self._import_attempted = False
 
@@ -131,10 +165,8 @@ class Reranker:
         return self._cache.get(key)
 
     def _cache_score(self, query: str, text: str, score: float):
-        if len(self._cache) >= self._cache_size:
-            self._cache.clear()
         key = hashlib.md5(f"{query}|{text}".encode()).hexdigest()
-        self._cache[key] = score
+        self._cache.put(key, score)
 
     def _fallback_rerank(self, query: str, results: List[Dict],
                           top_n: int) -> List[Dict]:

@@ -104,6 +104,13 @@ class RateLimiter:
             self._lock.release()
 
 
+def _validate_https_url(url: str) -> str:
+    """Validate URL uses HTTPS, raising ValueError if not."""
+    if not url.startswith("https://"):
+        raise ValueError(f"URL must use HTTPS scheme: {url}")
+    return url
+
+
 class WebSearchRetriever(BaseRetriever):
     """Retrieves evidence from internet search results (Tavily).
 
@@ -119,15 +126,17 @@ class WebSearchRetriever(BaseRetriever):
                  max_results_per_query: int = 5,
                  max_rpm: int = 100):
         self._api_key = api_key or os.environ.get("TAVILY_API_KEY", "")
-        self._api_url = api_url or os.environ.get(
+        raw_url = api_url or os.environ.get(
             "SEARCH_API_URL",
             "https://api.tavily.com/search",
         )
+        self._api_url = _validate_https_url(raw_url)
         self._top_k = top_k
         self._max_results = max_results_per_query
         self._ready = bool(self._api_key)
         self._cache: Dict[str, List[Dict]] = {}
         self._limiter = RateLimiter(max_requests=max_rpm, window_seconds=60)
+        self._session: Optional[Any] = None
 
         if self._ready:
             logger.info(
@@ -139,6 +148,14 @@ class WebSearchRetriever(BaseRetriever):
                 "WebSearchRetriever: no API key found. "
                 "Set TAVILY_API_KEY env var to enable. Skipping."
             )
+
+    def _get_session(self):
+        """Get or create a requests Session for connection pooling."""
+        if self._session is None:
+            import requests
+            self._session = requests.Session()
+            self._session.headers.update({"Content-Type": "application/json"})
+        return self._session
 
     def index_chunks(self, chunks: List[Dict]):
         pass
@@ -167,8 +184,6 @@ class WebSearchRetriever(BaseRetriever):
             logger.warning("requests not installed — cannot perform web search")
             return []
 
-        import requests
-
         last_error = ""
         for attempt in range(1, max_retries + 1):
             self._limiter.acquire()
@@ -182,11 +197,11 @@ class WebSearchRetriever(BaseRetriever):
                     "include_answer": False,
                     "include_raw_content": False,
                 }
-                resp = requests.post(
+                session = self._get_session()
+                resp = session.post(
                     self._api_url,
                     json=payload,
                     timeout=15,
-                    headers={"Content-Type": "application/json"},
                 )
 
                 if resp.status_code == 429:

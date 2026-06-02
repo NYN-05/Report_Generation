@@ -13,6 +13,31 @@ from .base import BaseRetriever, HybridRetriever
 
 logger = get_logger(__name__)
 
+_TIKTOKEN_ENCODING = None
+
+
+def _get_tokenizer():
+    """Get tiktoken encoder with lazy loading and fallback to character count."""
+    global _TIKTOKEN_ENCODING
+    if _TIKTOKEN_ENCODING is not None:
+        return _TIKTOKEN_ENCODING
+    try:
+        import tiktoken
+        _TIKTOKEN_ENCODING = tiktoken.get_encoding("cl100k_base")
+        logger.info("tiktoken initialized for accurate token counting")
+        return _TIKTOKEN_ENCODING
+    except (ImportError, Exception) as e:
+        logger.debug(f"tiktoken not available, using character estimation: {e}")
+        return None
+
+
+def count_tokens(text: str) -> int:
+    """Count tokens accurately using tiktoken, falling back to 4x char estimate."""
+    enc = _get_tokenizer()
+    if enc:
+        return len(enc.encode(text))
+    return len(text) // 4
+
 
 class ContextAssembler:
     """Assembles relevant context chunks for section generation.
@@ -89,20 +114,24 @@ class ContextAssembler:
         if not results:
             return results
         budgeted = []
-        total_chars = 0
-        char_budget = self._max_tokens * 4
+        total_tokens = 0
+        overhead_per_chunk = 50  # metadata overhead
         for r in results:
-            text_len = len(r.get("text", "")) + 200
-            if total_chars + text_len > char_budget:
-                remaining = char_budget - total_chars
-                if remaining > 200:
-                    truncated = r.get("text", "")[:remaining]
-                    r["text"] = truncated
-                    r["truncated"] = True
-                    budgeted.append(r)
+            text = r.get("text", "")
+            chunk_tokens = count_tokens(text) + overhead_per_chunk
+            if total_tokens + chunk_tokens > self._max_tokens:
+                remaining = self._max_tokens - total_tokens
+                if remaining > 50:
+                    # Truncate at token boundary using char estimate as fallback
+                    char_ratio = len(text) / max(count_tokens(text), 1)
+                    truncated_chars = int(remaining * char_ratio)
+                    if truncated_chars > 200:
+                        r["text"] = text[:truncated_chars]
+                        r["truncated"] = True
+                        budgeted.append(r)
                 break
             budgeted.append(r)
-            total_chars += text_len
+            total_tokens += chunk_tokens
         return budgeted
 
     def _format_context(self, results: List[Dict]) -> str:

@@ -1,3 +1,4 @@
+import hashlib
 import math
 from typing import List, Dict, Optional
 from src.core.logger import get_logger
@@ -63,7 +64,7 @@ class HybridSearch:
         return results
 
     def _merge_results_rrf(self, bm25: List[Dict],
-                           vector: List[Dict], n: int) -> List[Dict]:
+                            vector: List[Dict], n: int) -> List[Dict]:
         """Reciprocal Rank Fusion — principled rank-based merging.
 
         RRF avoids score normalization issues entirely by operating on ranks.
@@ -72,7 +73,8 @@ class HybridSearch:
         rrf_scores: Dict[str, Dict] = {}
 
         for rank, v in enumerate(vector):
-            norm = v.get("text", "")[:200]
+            text = v.get("text", "")
+            norm = hashlib.md5(text.encode()).hexdigest()
             if norm not in rrf_scores:
                 entry = dict(v)
                 entry["method"] = "vector"
@@ -82,7 +84,8 @@ class HybridSearch:
             rrf_scores[norm]["_rrf"] += 1.0 / (self.RRF_K + rank + 1)
 
         for rank, b in enumerate(bm25):
-            norm = b.get("text", "")[:200]
+            text = b.get("text", "")
+            norm = hashlib.md5(text.encode()).hexdigest()
             if norm not in rrf_scores:
                 entry = dict(b)
                 entry["method"] = "bm25"
