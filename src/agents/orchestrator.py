@@ -4,7 +4,6 @@ Orchestrator Agent Module
 Main orchestration agent that coordinates task execution.
 """
 
-import json
 import re
 from typing import Dict, Any, List, Optional
 from .base import BaseAgent, AgentResponse
@@ -231,7 +230,8 @@ Return ONLY valid JSON."""
 
             response = self.provider.chat(messages)
 
-            content = self._extract_json(response.content)
+            from src.core.utils import extract_json
+            content = extract_json(response.content)
             if content is not None:
                 self._log_info(f"Generated content with {len(skills)} skills")
                 return content
@@ -242,220 +242,47 @@ Return ONLY valid JSON."""
             self._log_error("content generation", e)
             return self._generate_fallback_content(task, skills)
 
-    def _extract_json(self, text: str) -> Optional[Dict]:
-        text = text.strip()
-        text = re.sub(r'^```(?:json)?\s*', '', text, flags=re.IGNORECASE)
-        text = re.sub(r'\s*```$', '', text)
-
-        json_match = re.search(r'\{.*\}', text, re.DOTALL)
-        if not json_match:
-            return None
-
-        raw = json_match.group()
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError:
-            pass
-
-        fixed = re.sub(r"(?<!\\)'(.*?)'(?=\s*:)", r'"\1"', raw)
-        fixed = re.sub(r":\s*'(.*?)'(?=[\s,}])", r': "\1"', fixed)
-        fixed = re.sub(r",\s*}", "}", fixed)
-        fixed = re.sub(r",\s*]", "]", fixed)
-        try:
-            return json.loads(fixed)
-        except json.JSONDecodeError:
-            pass
-
-        fixed2 = re.sub(r'//[^\n]*', '', fixed)
-        try:
-            return json.loads(fixed2)
-        except json.JSONDecodeError:
-            return None
-
     def _generate_fallback_content(self, task: str, skills: List[Skill] = None) -> Dict:
-        """Generate content guided by selected skill knowledge when LLM is unavailable."""
+        """Return a clear error when LLM is unavailable, with no fabricated content."""
         from datetime import datetime
-        import re as _re
         current_date = datetime.now().strftime("%B %Y")
         title = task.title()
-
-        skill_terms = set()
-        skill_descriptions = []
-        skill_section = None
-        if skills:
-            for skill in skills:
-                if skill.description:
-                    skill_descriptions.append(skill.description)
-                    words = _re.findall(r'\b[A-Z][a-zA-Z]{2,}\b', skill.description)
-                    skill_terms.update(w.lower() for w in words if len(w) > 3)
-                    skill_terms.update(t.lower() for t in skill.tags if len(t) > 2)
-                    skill_terms.update(k.lower() for k in skill.keywords if len(k) > 2)
-
-                    full = self.skill_registry.get_full_content(skill.name)
-                    if full:
-                        lines = [l.strip() for l in full.split('\n') if l.strip() and not l.startswith('---')]
-                        body = ' '.join(lines[:30])
-                        key_phrases = _re.findall(r'\*\*([^*]+)\*\*', body)
-                        skill_terms.update(p.lower().strip() for p in key_phrases if len(p.strip()) > 3)
-
-            if skill_descriptions:
-                combined = ' '.join(skill_descriptions)
-                first_skill = skills[0]
-                skill_section = {
-                    "heading": f"Application of {first_skill.name.title()} Principles",
-                    "content": (
-                        f"The {first_skill.name} framework provides structured guidance relevant to {task}. "
-                        f"{first_skill.description[:300]}\n\n"
-                        f"Applying these principles to {task} requires careful consideration of "
-                        f"best practices and established methodologies in this domain. "
-                        f"The key areas covered include understanding core concepts, "
-                        f"implementing effective solutions, and following industry standards.\n\n"
-                        f"By leveraging the knowledge embedded in this skill, practitioners can "
-                        f"approach {task} with a structured methodology that has been refined "
-                        f"through practical application and community feedback. This ensures "
-                        f"that implementations are both robust and aligned with current best practices."
-                    )
-                }
-
-        term_list = list(skill_terms)[:12]
-        term_context = ", ".join(term_list[:6]) if term_list else "key concepts"
-
-        sections = [
-            {
-                "heading": "Current Landscape and Key Developments",
-                "content": (
-                    f"The current landscape of {task} is characterized by several concurrent "
-                    f"trends that are reshaping how organizations approach this domain. "
-                    f"Adoption rates have accelerated significantly, with both early adopters "
-                    f"and mainstream organizations investing substantial resources.\n\n"
-                    f"One of the most significant developments is the increasing convergence of "
-                    f"previously disparate technologies and methodologies in areas such as "
-                    f"{term_context}. This convergence is creating new capabilities that were "
-                    f"not feasible just a few years ago, enabling organizations to tackle "
-                    f"complex challenges with integrated solutions.\n\n"
-                    f"Market leaders are investing heavily in research and development, pushing "
-                    f"the boundaries of what is possible. At the same time, a vibrant ecosystem "
-                    f"of startups and open-source initiatives is democratizing access and driving "
-                    f"innovation from multiple directions."
-                )
-            },
-            {
-                "heading": "Detailed Analysis",
-                "content": (
-                    f"A deeper examination of {task} reveals several important patterns and "
-                    f"dynamics that merit careful consideration. First, the rate of change "
-                    f"continues to accelerate, with new developments emerging on a weekly "
-                    f"rather than monthly or yearly basis. This rapid pace creates both "
-                    f"opportunities and challenges for organizations trying to stay current.\n\n"
-                    f"Second, the barriers to entry are shifting. While some aspects of the "
-                    f"domain are becoming more accessible through improved tools and platforms, "
-                    f"other areas are requiring deeper expertise and more sophisticated infrastructure. "
-                    f"This dual dynamic is reshaping the competitive landscape in significant ways.\n\n"
-                    f"Third, we observe a growing emphasis on practical, real-world applications "
-                    f"over theoretical exploration. Organizations are increasingly focused on "
-                    f"deploying solutions that deliver measurable business value, driving a shift "
-                    f"toward more pragmatic approaches.\n\n"
-                    f"Key technical areas such as {term_context} are central to this evolution, "
-                    f"representing critical focus areas for organizations seeking to build "
-                    f"competitive advantage in the {task} space."
-                )
-            },
-            {
-                "heading": "Challenges and Opportunities",
-                "content": (
-                    f"Organizations operating in the {task} space face several significant "
-                    f"challenges that must be addressed to realize the full potential of "
-                    f"their initiatives. Talent acquisition and development remains a critical "
-                    f"concern, with demand for skilled practitioners far outstripping supply. "
-                    f"Organizations must invest in training and development programs to build "
-                    f"internal capabilities.\n\n"
-                    f"Technical debt and legacy system integration pose another major challenge. "
-                    f"Many organizations struggle to modernize existing infrastructure while "
-                    f"simultaneously adopting new approaches. A phased, strategic approach to "
-                    f"modernization is essential to manage risk while maintaining momentum.\n\n"
-                    f"However, these challenges are matched by significant opportunities. "
-                    f"Early movers who successfully navigate the current landscape can "
-                    f"establish substantial competitive advantages. The potential for "
-                    f"innovation remains high, with numerous unexplored areas and applications "
-                    f"within {term_context} and related fields."
-                )
-            },
-            {
-                "heading": "Strategic Recommendations",
-                "content": (
-                    f"Based on our analysis of {task}, we offer the following strategic "
-                    f"recommendations for organizations seeking to maximize their effectiveness "
-                    f"in this domain.\n\n"
-                    f"First, invest in building foundational capabilities before pursuing advanced "
-                    f"applications. Organizations that rush to implement cutting-edge solutions "
-                    f"without solid foundations often encounter setbacks that could have been "
-                    f"avoided with more measured approaches.\n\n"
-                    f"Second, adopt a portfolio approach to investment in this space. Rather than "
-                    f"betting on a single technology or approach, maintain a balanced portfolio "
-                    f"that includes both incremental improvements and transformative initiatives. "
-                    f"This approach manages risk while maintaining the potential for breakthrough results.\n\n"
-                    f"Third, prioritize continuous learning and adaptation. Given the rapid pace "
-                    f"of change, organizations must build learning into their operational DNA. "
-                    f"This includes formal training programs, participation in professional communities, "
-                    f"and dedicated time for experimentation and exploration.\n\n"
-                    f"Finally, emphasize measurement and evaluation. Establish clear metrics for "
-                    f"success and regularly assess progress against these benchmarks. "
-                    f"Data-driven decision-making is essential for navigating the complexities "
-                    f"of this evolving landscape."
-                )
-            }
-        ]
-
-        if skill_section:
-            sections.insert(2, skill_section)
-
+        
         return {
-            "title": f"Comprehensive Report on {title}",
-            "subtitle": "In-Depth Analysis and Strategic Insights",
+            "title": f"LLM Unavailable: {title}",
+            "subtitle": "Report generation requires a running LLM provider (Ollama)",
             "author": "AI Report Generator",
             "date": current_date,
-            "toc_entries": [
-                "Executive Summary",
-                "Introduction and Background",
-                *(s["heading"] for s in sections),
-                "Conclusion"
-            ],
+            "toc_entries": ["Error: LLM Not Available"],
             "executive_summary": (
-                f"This report provides a comprehensive analysis of {task}, examining its current state, "
-                f"key developments, and future trajectory. Drawing on domain expertise in "
-                f"{term_context}, we identify critical challenges and opportunities that shape "
-                f"decision-making in this area. The analysis offers actionable insights for "
-                f"practitioners and stakeholders navigating this evolving landscape."
+                f"Report generation for '{task}' could not be completed because no LLM provider "
+                f"is available. The system requires Ollama (or another configured provider) to be "
+                f"running and accessible. Please ensure Ollama is installed and running, then retry."
             ),
             "introduction": (
-                f"The domain of {task} has undergone substantial transformation in recent years, "
-                f"driven by rapid technological advancement, evolving market dynamics, and shifting "
-                f"regulatory frameworks. Understanding these changes is essential for organizations "
-                f"seeking to maintain competitive advantage and make informed strategic decisions.\n\n"
-                f"This report aims to provide a thorough examination of the current state of {task}, "
-                f"tracing its evolution and identifying the key forces shaping its trajectory. "
-                f"We explore the technical, economic, and organizational dimensions that define "
-                f"this space, offering readers a holistic perspective on where things stand today "
-                f"and where they are heading.\n\n"
-                f"Drawing on relevant expertise in {term_context}, this analysis is structured to "
-                f"first establish foundational context, then examine specific developments in detail, "
-                f"and finally synthesize findings into actionable recommendations for practitioners "
-                f"and decision-makers."
+                f"LLM Provider Unavailable\n\n"
+                f"The report generation pipeline could not proceed because it requires a running "
+                f"LLM provider. Currently only Ollama is supported. Please:\n"
+                f"1. Install Ollama from https://ollama.ai\n"
+                f"2. Start the Ollama service\n"
+                f"3. Pull the required model: ollama pull llama3.2:3b\n"
+                f"4. Retry generating the report"
             ),
-            "sections": sections,
+            "sections": [
+                {
+                    "heading": "Next Steps",
+                    "content": (
+                        f"To generate a report on '{task}', please:\n"
+                        f"- Ensure Ollama is running (http://localhost:11434)\n"
+                        f"- Verify the model 'llama3.2:3b' is available\n"
+                        f"- Run the pipeline again once the provider is accessible"
+                    )
+                }
+            ],
             "conclusion": (
-                f"The landscape of {task} continues to evolve rapidly, presenting both significant "
-                f"opportunities and formidable challenges. Organizations that approach this domain "
-                f"with strategic foresight, balanced investment, and a commitment to continuous "
-                f"learning will be best positioned to succeed.\n\n"
-                f"The key takeaway from this analysis is that success in {task} requires more than "
-                f"simply adopting the latest technologies or methodologies. It demands a holistic "
-                f"approach that considers technical, organizational, and strategic dimensions in "
-                f"an integrated fashion.\n\n"
-                f"As the domain continues to mature, we expect to see further convergence, "
-                f"increased standardization, and growing emphasis on practical, measurable outcomes. "
-                f"Organizations that position themselves accordingly will be well-prepared for "
-                f"the opportunities that lie ahead."
+                f"The system is designed to produce evidence-based, knowledge-driven reports. "
+                f"Without an LLM provider, it cannot generate meaningful content. "
+                f"No fabricated or placeholder content has been inserted."
             )
         }
 

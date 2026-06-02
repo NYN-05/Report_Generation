@@ -168,12 +168,11 @@ class CoordinatedPipeline(BasePipeline):
         ctx.retrieval_cache = comp.get("retrieval_cache")
         ctx.context_cache = comp.get("context_cache")
         if kwargs.get("callback") and ctx.event_bus:
+            import functools
             cb = kwargs["callback"]
-            def _make_cb(status_val):
-                return lambda phase, **kw: cb(phase, status_val)
-            ctx.event_bus.on(PHASE_STARTED, _make_cb("started"))
-            ctx.event_bus.on(PHASE_COMPLETED, _make_cb("completed"))
-            ctx.event_bus.on(PHASE_FAILED, _make_cb("failed"))
+            ctx.event_bus.on(PHASE_STARTED, functools.partial(cb, status="started"))
+            ctx.event_bus.on(PHASE_COMPLETED, functools.partial(cb, status="completed"))
+            ctx.event_bus.on(PHASE_FAILED, functools.partial(cb, status="failed"))
         return ctx
 
     def _resolve_phases(self, kwargs: dict) -> Dict[str, Callable]:

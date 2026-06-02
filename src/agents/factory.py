@@ -40,7 +40,8 @@ class AgentFactory:
         **kwargs
     ) -> BaseAgent:
         """Create an agent by type."""
-        key = f"{agent_type}_{id(provider)}"
+        provider_repr = repr(provider) if provider else "none"
+        key = f"{agent_type}_{provider_repr}"
 
         if key not in cls._agents:
             if agent_type.lower() not in cls._registry:

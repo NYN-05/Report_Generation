@@ -53,15 +53,10 @@ class AgentCoordinator(BaseAgent):
         if writing and hasattr(writing, "set_prompt_builder"):
             writing.set_prompt_builder(prompt_builder)
 
-    def set_context_assembler(self, context_assembler):
-        research = self.agents.get("research")
-        if research and hasattr(research, "set_context_assembler"):
-            research.set_context_assembler(context_assembler)
-
-    def set_prompt_builder(self, prompt_builder):
-        writing = self.agents.get("writing")
-        if writing and hasattr(writing, "set_prompt_builder"):
-            writing.set_prompt_builder(prompt_builder)
+    def set_planner(self, planner):
+        planning = self.agents.get("planning")
+        if planning and hasattr(planning, "set_planner"):
+            planning.set_planner(planner)
 
     def execute(self, input_data: Any, **kwargs) -> AgentResponse:
         """Run each registered agent in AGENT_PHASES order.
@@ -89,11 +84,13 @@ class AgentCoordinator(BaseAgent):
             elif phase == "writing":
                 agent_input = {"topic": topic, "sections": getattr(plan, "sections", []) if plan else []}
             elif phase == "citation":
-                content = "\n\n".join(s.content for s in plan.sections) if plan and hasattr(plan, "sections") else ""
+                sections = [s for s in getattr(plan, "sections", []) if s] if plan else []
+                content = "\n\n".join(s.content for s in sections) if sections else ""
                 agent_input = {"content": content, "references": getattr(plan, "references", []) if plan else []}
             elif phase == "formatting":
+                plan_sections = [s for s in getattr(plan, "sections", []) if s] if plan else []
                 sections = [{"heading": s.heading, "content": s.content, "level": s.level}
-                            for s in getattr(plan, "sections", [])] if plan else []
+                            for s in plan_sections]
                 agent_input = {"sections": sections}
             elif phase == "export":
                 agent_input = {
