@@ -1,0 +1,50 @@
+version: "3.8"
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: report_gen_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  app:
+    build: .
+    container_name: report_gen_app
+    depends_on:
+      ollama:
+        condition: service_healthy
+    volumes:
+      - ./output:/app/output
+      - ./logs:/app/logs
+      - ./cache:/app/cache
+      - ./knowledge:/app/knowledge
+      - ./prompts:/app/prompts
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - LLM_MODEL=llama3.2:3b
+      - TAVILY_API_KEY=${TAVILY_API_KEY:-}
+    entrypoint: >
+      sh -c "
+        echo 'Waiting for Ollama...' &&
+        until ollama list 2>/dev/null; do
+          sleep 2
+        done &&
+        echo 'Pulling model...' &&
+        ollama pull llama3.2:3b 2>/dev/null || true &&
+        echo 'Ready. Running report generation...' &&
+        python -m src.main \"$$@\"
+      "
+    restart: "no"
+
+volumes:
+  ollama_data:
