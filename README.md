@@ -14,6 +14,14 @@
 
 </p>
 
+<p align="center">
+  <img src="assets/evidence-first-badge.svg" width="280" alt="Evidence First AI">
+</p>
+
+<p align="center">
+  <img src="assets/pipeline-animated.svg" width="100%" alt="Pipeline">
+</p>
+
 ---
 
 ## Why This Project Exists
@@ -190,6 +198,22 @@ graph TD
 ```
 
 </details>
+
+---
+
+## Knowledge Graph
+
+<img src="assets/knowledge-graph.svg" width="100%" alt="Knowledge Graph">
+
+The system builds a **project-centric knowledge graph** with 6 node types (Project, Objective, Technology, Dataset, Algorithm, Metric/Result) and 10 link types, enabling structured evidence navigation and cross-fact relationship mapping.
+
+---
+
+## Quality Dashboard
+
+<img src="assets/dashboard.svg" width="100%" alt="Pipeline Dashboard">
+
+Every generation phase is monitored in real-time with per-section coverage scores, quality metrics (evidence fidelity, fact utilization, traceability, hallucination risk, technical depth), and pipeline status indicators.
 
 ---
 
@@ -393,6 +417,10 @@ pytest tests/ --cov=src              # With coverage
 | Jinja2 | No | Prompt templates |
 
 ---
+
+<p align="center">
+  <img src="assets/evidence-first-badge.svg" width="200" alt="Evidence First AI">
+</p>
 
 <p align="center">
   <sub>Built with a focus on <strong>evidence over generation</strong> &mdash; every sentence traces to a verifiable source.</sub>

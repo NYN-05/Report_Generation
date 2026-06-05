@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="120" viewBox="0 0 800 120">
+  <defs>
+    <linearGradient id="pbg" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#0f172a"/>
+      <stop offset="100%" style="stop-color:#1e293b"/>
+    </linearGradient>
+    <linearGradient id="pulseG" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#38bdf8;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#38bdf8;stop-opacity:0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="800" height="120" fill="url(#pbg)" rx="10"/>
+
+  <!-- Arrow connector line (static) -->
+  <line x1="50" y1="60" x2="780" y2="60" stroke="#334155" stroke-width="2"/>
+
+  <!-- Stage 1: Input -->
+  <g>
+    <rect x="10" y="35" width="70" height="40" rx="6" fill="#1e293b" stroke="#38bdf8" stroke-width="2"/>
+    <text x="45" y="60" text-anchor="middle" font-family="monospace" font-size="10" fill="#38bdf8">Topic</text>
+  </g>
+
+  <!-- Animated pulse dot 1 -->
+  <circle cx="90" cy="60" r="3" fill="#38bdf8">
+    <animate attributeName="r" values="3;5;3" dur="1.5s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="1;0.3;1" dur="1.5s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- Stage 2: Plan -->
+  <g>
+    <rect x="100" y="35" width="70" height="40" rx="6" fill="#1e293b" stroke="#818cf8" stroke-width="2"/>
+    <text x="135" y="60" text-anchor="middle" font-family="monospace" font-size="10" fill="#818cf8">Plan</text>
+  </g>
+
+  <circle cx="180" cy="60" r="3" fill="#818cf8">
+    <animate attributeName="r" values="3;5;3" dur="1.5s" begin="0.2s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="1;0.3;1" dur="1.5s" begin="0.2s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- Stage 3: Research -->
+  <g>
+    <rect x="190" y="35" width="80" height="40" rx="6" fill="#1e293b" stroke="#34d399" stroke-width="2"/>
+    <text x="230" y="60" text-anchor="middle" font-family="monospace" font-size="10" fill="#34d399">Research</text>
+  </g>
+
+  <circle cx="280" cy="60" r="3" fill="#34d399">
+    <animate attributeName="r" values="3;5;3" dur="1.5s" begin="0.4s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="1;0.3;1" dur="1.5s" begin="0.4s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- Stage 4: KG -->
+  <g>
+    <rect x="290" y="30" width="90" height="50" rx="6" fill="#1e293b" stroke="#f59e0b" stroke-width="2"/>
+    <text x="335" y="52" text-anchor="middle" font-family="monospace" font-size="9" fill="#f59e0b">Knowledge</text>
+    <text x="335" y="66" text-anchor="middle" font-family="monospace" font-size="9" fill="#f59e0b">Graph</text>
+  </g>
+
+  <circle cx="390" cy="60" r="3" fill="#f59e0b">
+    <animate attributeName="r" values="3;5;3" dur="1.5s" begin="0.6s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="1;0.3;1" dur="1.5s" begin="0.6s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- Stage 5: Fact Store (highlighted) -->
+  <g>
+    <rect x="400" y="28" width="85" height="54" rx="6" fill="#0f172a" stroke="#22c55e" stroke-width="2.5"/>
+    <rect x="400" y="28" width="85" height="54" rx="6" fill="#22c55e" opacity="0.08"/>
+    <text x="442" y="50" text-anchor="middle" font-family="monospace" font-size="9" font-weight="bold" fill="#22c55e">Fact</text>
+    <text x="442" y="64" text-anchor="middle" font-family="monospace" font-size="9" font-weight="bold" fill="#22c55e">Store</text>
+  </g>
+
+  <circle cx="495" cy="60" r="3" fill="#22c55e">
+    <animate attributeName="r" values="3;6;3" dur="1.5s" begin="0.8s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="1;0.3;1" dur="1.5s" begin="0.8s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- Stage 6: Generate -->
+  <g>
+    <rect x="505" y="35" width="80" height="40" rx="6" fill="#1e293b" stroke="#f472b6" stroke-width="2"/>
+    <text x="545" y="60" text-anchor="middle" font-family="monospace" font-size="10" fill="#f472b6">Generate</text>
+  </g>
+
+  <circle cx="595" cy="60" r="3" fill="#f472b6">
+    <animate attributeName="r" values="3;5;3" dur="1.5s" begin="1s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="1;0.3;1" dur="1.5s" begin="1s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- Stage 7: Validate -->
+  <g>
+    <rect x="605" y="35" width="75" height="40" rx="6" fill="#1e293b" stroke="#a78bfa" stroke-width="2"/>
+    <text x="642" y="60" text-anchor="middle" font-family="monospace" font-size="10" fill="#a78bfa">Validate</text>
+  </g>
+
+  <circle cx="690" cy="60" r="3" fill="#a78bfa">
+    <animate attributeName="r" values="3;5;3" dur="1.5s" begin="1.2s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="1;0.3;1" dur="1.5s" begin="1.2s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- Stage 8: Export -->
+  <g>
+    <rect x="700" y="35" width="75" height="40" rx="6" fill="#1e293b" stroke="#38bdf8" stroke-width="2"/>
+    <text x="737" y="60" text-anchor="middle" font-family="monospace" font-size="10" fill="#38bdf8">Export</text>
+  </g>
+
+  <!-- Footer label -->
+  <text x="400" y="108" text-anchor="middle" font-family="monospace" font-size="9" fill="#475569">Evidence-Constrained Pipeline • 8 Phases • Real-Time</text>
+</svg>

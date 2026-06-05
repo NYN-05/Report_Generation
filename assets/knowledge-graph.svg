@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500" viewBox="0 0 800 500">
+  <defs>
+    <radialGradient id="bgGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#0f172a"/>
+      <stop offset="100%" style="stop-color:#020617"/>
+    </radialGradient>
+    <linearGradient id="edge" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#38bdf8;stop-opacity:0.1"/>
+      <stop offset="50%" style="stop-color:#38bdf8;stop-opacity:0.4"/>
+      <stop offset="100%" style="stop-color:#38bdf8;stop-opacity:0.1"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="800" height="500" fill="url(#bgGlow)" rx="12"/>
+  <rect x="0" y="0" width="800" height="40" rx="12" fill="#1e293b"/>
+  <rect x="0" y="20" width="800" height="20" fill="#1e293b"/>
+
+  <!-- Header dots -->
+  <circle cx="20" cy="20" r="5" fill="#ef4444"/>
+  <circle cx="38" cy="20" r="5" fill="#f59e0b"/>
+  <circle cx="56" cy="20" r="5" fill="#22c55e"/>
+  <text x="400" y="25" text-anchor="middle" font-family="monospace" font-size="11" fill="#94a3b8">Knowledge Graph Visualization</text>
+
+  <!-- Nodes and edges drawn with low opacity lines first -->
+
+  <!-- Edges -->
+  <g stroke="#38bdf8" stroke-width="1.5" opacity="0.3">
+    <line x1="400" y1="100" x2="200" y2="200"/>
+    <line x1="400" y1="100" x2="600" y2="200"/>
+    <line x1="400" y1="100" x2="400" y2="220"/>
+    <line x1="200" y1="200" x2="100" y2="320"/>
+    <line x1="200" y1="200" x2="300" y2="350"/>
+    <line x1="600" y1="200" x2="700" y2="320"/>
+    <line x1="600" y1="200" x2="500" y2="350"/>
+    <line x1="400" y1="220" x2="250" y2="380"/>
+    <line x1="400" y1="220" x2="550" y2="380"/>
+    <line x1="400" y1="220" x2="400" y2="420"/>
+  </g>
+
+  <!-- Central Project node -->
+  <circle cx="400" cy="100" r="30" fill="#1e293b" stroke="#38bdf8" stroke-width="2.5" filter="url(#glow)"/>
+  <text x="400" y="97" text-anchor="middle" font-family="monospace" font-size="8" font-weight="bold" fill="#38bdf8">PROJECT</text>
+  <text x="400" y="110" text-anchor="middle" font-family="monospace" font-size="6" fill="#38bdf8" opacity="0.7">ReportGen</text>
+
+  <!-- Layer 2: Objectives / Technologies -->
+  <circle cx="200" cy="200" r="22" fill="#1e293b" stroke="#818cf8" stroke-width="2"/>
+  <text x="200" y="197" text-anchor="middle" font-family="monospace" font-size="7" font-weight="bold" fill="#818cf8">OBJECTIVE</text>
+  <text x="200" y="210" text-anchor="middle" font-family="monospace" font-size="6" fill="#818cf8" opacity="0.7">NID Detection</text>
+
+  <circle cx="600" cy="200" r="22" fill="#1e293b" stroke="#818cf8" stroke-width="2"/>
+  <text x="600" y="197" text-anchor="middle" font-family="monospace" font-size="7" font-weight="bold" fill="#818cf8">OBJECTIVE</text>
+  <text x="600" y="210" text-anchor="middle" font-family="monospace" font-size="6" fill="#818cf8" opacity="0.7">Classification</text>
+
+  <circle cx="400" cy="220" r="22" fill="#1e293b" stroke="#34d399" stroke-width="2"/>
+  <text x="400" y="217" text-anchor="middle" font-family="monospace" font-size="6" font-weight="bold" fill="#34d399">TECHNOLOGY</text>
+  <text x="400" y="230" text-anchor="middle" font-family="monospace" font-size="6" fill="#34d399" opacity="0.7">PyTorch</text>
+
+  <!-- Layer 3: Datasets / Algorithms -->
+  <circle cx="100" cy="320" r="20" fill="#1e293b" stroke="#f59e0b" stroke-width="2"/>
+  <text x="100" y="317" text-anchor="middle" font-family="monospace" font-size="6" font-weight="bold" fill="#f59e0b">DATASET</text>
+  <text x="100" y="330" text-anchor="middle" font-family="monospace" font-size="6" fill="#f59e0b" opacity="0.7">NSL-KDD</text>
+
+  <circle cx="300" cy="350" r="20" fill="#1e293b" stroke="#f472b6" stroke-width="2"/>
+  <text x="300" y="347" text-anchor="middle" font-family="monospace" font-size="6" font-weight="bold" fill="#f472b6">ALGORITHM</text>
+  <text x="300" y="360" text-anchor="middle" font-family="monospace" font-size="6" fill="#f472b6" opacity="0.7">CNN</text>
+
+  <circle cx="700" cy="320" r="20" fill="#1e293b" stroke="#f59e0b" stroke-width="2"/>
+  <text x="700" y="317" text-anchor="middle" font-family="monospace" font-size="6" font-weight="bold" fill="#f59e0b">DATASET</text>
+  <text x="700" y="330" text-anchor="middle" font-family="monospace" font-size="6" fill="#f59e0b" opacity="0.7">CIC-IDS</text>
+
+  <circle cx="500" cy="350" r="20" fill="#1e293b" stroke="#f472b6" stroke-width="2"/>
+  <text x="500" y="347" text-anchor="middle" font-family="monospace" font-size="6" font-weight="bold" fill="#f472b6">ALGORITHM</text>
+  <text x="500" y="360" text-anchor="middle" font-family="monospace" font-size="6" fill="#f472b6" opacity="0.7">LSTM</text>
+
+  <!-- Layer 4: Results / Metrics -->
+  <circle cx="250" cy="380" r="18" fill="#1e293b" stroke="#a78bfa" stroke-width="2"/>
+  <text x="250" y="377" text-anchor="middle" font-family="monospace" font-size="6" font-weight="bold" fill="#a78bfa">METRIC</text>
+  <text x="250" y="389" text-anchor="middle" font-family="monospace" font-size="5" fill="#a78bfa" opacity="0.7">98.5% Acc</text>
+
+  <circle cx="550" cy="380" r="18" fill="#1e293b" stroke="#a78bfa" stroke-width="2"/>
+  <text x="550" y="377" text-anchor="middle" font-family="monospace" font-size="6" font-weight="bold" fill="#a78bfa">METRIC</text>
+  <text x="550" y="389" text-anchor="middle" font-family="monospace" font-size="5" fill="#a78bfa" opacity="0.7">0.92 F1</text>
+
+  <circle cx="400" cy="420" r="18" fill="#1e293b" stroke="#f59e0b" stroke-width="2"/>
+  <text x="400" y="417" text-anchor="middle" font-family="monospace" font-size="6" font-weight="bold" fill="#f59e0b">RESULT</Text>
+  <text x="400" y="429" text-anchor="middle" font-family="monospace" font-size="5" fill="#f59e0b" opacity="0.7">SOTA</text>
+
+  <!-- Legend -->
+  <g transform="translate(20, 460)">
+    <line x1="0" y1="0" x2="20" y2="0" stroke="#38bdf8" stroke-width="1.5" opacity="0.5"/>
+    <text x="25" y="4" font-family="monospace" font-size="8" fill="#64748b">Evidence Links</text>
+    <circle cx="130" cy="0" r="3" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5"/>
+    <text x="138" y="4" font-family="monospace" font-size="8" fill="#64748b">Active Node</text>
+    <circle cx="230" cy="0" r="3" fill="#334155" stroke="#475569" stroke-width="1"/>
+    <text x="238" y="4" font-family="monospace" font-size="8" fill="#64748b">Related</text>
+  </g>
+
+  <!-- Footer -->
+  <text x="400" y="490" text-anchor="middle" font-family="monospace" font-size="9" fill="#475569">6 Node Types • 12 Linked Facts • Evidence-Grounded Graph</text>
+</svg>
