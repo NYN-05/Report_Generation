@@ -23,6 +23,14 @@ logger = get_logger("main")
 
 def run(topic: str, knowledge_dir: str = "knowledge", output_path: str = "output/output.docx",
         web_search: bool = False, min_coverage: float = 0.3):
+    out_path = Path(output_path)
+    if out_path.suffix.lower() == ".pdf":
+        docx_path = str(out_path.with_suffix(".docx"))
+        pdf_path_user = output_path
+    else:
+        docx_path = str(out_path.with_suffix(".docx"))
+        pdf_path_user = str(out_path.with_suffix(".pdf"))
+
     print(f"\n{'='*60}")
     print(f"  EVIDENCE-FIRST REPORT: {topic}")
     print(f"{'='*60}\n")
@@ -149,23 +157,23 @@ def run(topic: str, knowledge_dir: str = "knowledge", output_path: str = "output
             title=topic,
             author="",
             sections=section_contents,
-            output_path=output_path,
+            output_path=docx_path,
         )
         print(f"  [OK] DOCX saved: {output}")
     except Exception as e:
         print(f"  [FAIL] DOCX generation: {e}")
         return False
 
-    pdf_path = str(Path(output).with_suffix(".pdf"))
     print(f"  [8/8] Converting to PDF...")
     try:
         from docx2pdf import convert
-        convert(output, pdf_path)
-        print(f"  [OK] PDF saved: {pdf_path}")
+        convert(output, pdf_path_user)
+        print(f"  [OK] PDF saved: {pdf_path_user}")
+        pdf_path_out = pdf_path_user
     except Exception as e:
         logger.warning(f"PDF conversion failed: {e}")
         print(f"  [INFO] PDF conversion skipped ({e})")
-        pdf_path = None
+        pdf_path_out = None
 
     elapsed = time.time() - t0
     total_words = sum(sc.total_words for sc in section_contents)
@@ -181,8 +189,8 @@ def run(topic: str, knowledge_dir: str = "knowledge", output_path: str = "output
     print(f"  Facts Used: {total_facts_used} | Sources: {sum(sc.source_count for sc in section_confidences)}")
     print(f"  Hallucination Issues: {result['total_issues']}")
     print(f"  DOCX: {output}")
-    if pdf_path:
-        print(f"  PDF:  {pdf_path}")
+    if pdf_path_out:
+        print(f"  PDF:  {pdf_path_out}")
     print(f"{'='*60}")
     return True
 
