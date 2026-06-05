@@ -48,15 +48,26 @@ class DOCXV2Generator:
         sections: Optional[List[SectionContent]] = None,
         output_path: str = "output.docx",
         validate: bool = True,
+        executive_summary: str = "",
+        key_findings_section: Optional[SectionContent] = None,
+        utilization_summary: Optional[Dict] = None,
     ) -> str:
         self._doc = Document()
         self._styles.setup_document(self._doc)
         meta = metadata or {}
         self._add_cover_page(title, author, subtitle, meta)
-        self._add_table_of_contents(sections or [])
+        self._add_table_of_contents(sections or [], has_exec=bool(executive_summary),
+                                     has_kf=key_findings_section is not None)
+        if executive_summary:
+            self._add_executive_summary(executive_summary)
+        if key_findings_section:
+            self._render_section(key_findings_section)
         for section in sections or []:
             self._render_section(section)
+        if utilization_summary:
+            self._add_utilization_summary(utilization_summary)
         self._add_evidence_appendix(sections or [])
+        self._add_references(sections or [])
         if validate and HAS_DOCX:
             validator = DocumentStyleValidator()
             passed, issues = validator.validate(self._doc)
@@ -99,6 +110,8 @@ class DOCXV2Generator:
             if meta.get("report_type"):
                 rtype = meta["report_type"].replace("_", " ").title()
                 parts.append(f"Type: {rtype}")
+            if meta.get("audience"):
+                parts.append(f"Audience: {meta['audience']}")
             if parts:
                 self._styles.write_run(info_p, " | ".join(parts), self._styles.get_styles().cover_page.author_font)
         from datetime import date
@@ -108,14 +121,97 @@ class DOCXV2Generator:
         self._styles.write_run(date_p, date.today().strftime("%B %d, %Y"), self._styles.get_styles().cover_page.author_font)
         self._doc.add_page_break()
 
-    def _add_table_of_contents(self, sections: List[SectionContent]):
+    def _add_table_of_contents(self, sections: List[SectionContent],
+                                 has_exec: bool = False,
+                                 has_kf: bool = False):
         toc_heading = self._doc.add_heading("Table of Contents", level=1)
-        for i, section in enumerate(sections, 1):
+        i = 1
+        if has_exec:
+            p = self._doc.add_paragraph(f"{i}. Executive Summary")
+            p.paragraph_format.space_before = Pt(4)
+            p.paragraph_format.space_after = Pt(2)
+            i += 1
+        if has_kf:
+            p = self._doc.add_paragraph(f"{i}. Key Findings and Insights")
+            p.paragraph_format.space_before = Pt(4)
+            p.paragraph_format.space_after = Pt(2)
+            i += 1
+        for section in sections:
             p = self._doc.add_paragraph(f"{i}. {section.heading}")
             pf = p.paragraph_format
             pf.space_before = Pt(4)
             pf.space_after = Pt(2)
+            i += 1
+        p = self._doc.add_paragraph(f"{i}. Evidence Utilization Summary")
+        p.paragraph_format.space_before = Pt(4)
+        p.paragraph_format.space_after = Pt(2)
+        i += 1
+        p = self._doc.add_paragraph(f"{i}. Appendix: Evidence Traceability")
+        p.paragraph_format.space_before = Pt(4)
+        p.paragraph_format.space_after = Pt(2)
+        i += 1
+        p = self._doc.add_paragraph(f"{i}. References")
+        p.paragraph_format.space_before = Pt(4)
+        p.paragraph_format.space_after = Pt(2)
         self._doc.add_page_break()
+
+    def _add_executive_summary(self, summary: str):
+        heading = self._doc.add_heading("Executive Summary", level=1)
+        p = self._doc.add_paragraph()
+        self._styles.apply_paragraph_style(p, self._styles.get_styles().content)
+        run = p.add_run(sanitize_text(summary))
+        run.font.name = self._styles.get_styles().content.font.name
+        run.font.size = Pt(self._styles.get_styles().content.font.size)
+        self._doc.add_page_break()
+
+    def _add_utilization_summary(self, summary: Dict):
+        self._doc.add_page_break()
+        heading = self._doc.add_heading("Evidence Utilization Summary", level=1)
+
+        facts_table = self._doc.add_table(rows=6, cols=2)
+        facts_table.style = "Light Shading Accent 1"
+        facts_table.alignment = WD_ALIGN_PARAGRAPH.LEFT
+
+        def set_cell(row, col, text, bold=False):
+            cell = facts_table.rows[row].cells[col]
+            cell.text = str(text)
+            for para in cell.paragraphs:
+                for run in para.runs:
+                    run.font.size = Pt(11)
+                    run.font.bold = bold
+
+        set_cell(0, 0, "Metric", True)
+        set_cell(0, 1, "Value", True)
+        set_cell(1, 0, "Total Facts Collected")
+        set_cell(1, 1, summary.get("total_facts", 0))
+        set_cell(2, 0, "Facts Assigned to Clusters")
+        set_cell(2, 1, summary.get("assigned_facts", 0))
+        set_cell(3, 0, "Facts Incorporated in Report")
+        set_cell(3, 1, summary.get("generated_facts", 0))
+        set_cell(4, 0, "Fact Utilization Rate")
+        set_cell(4, 1, f"{summary.get('utilization_rate', 0) * 100:.1f}%")
+        set_cell(5, 0, "Source Coverage Rate")
+        set_cell(5, 1, f"{summary.get('source_coverage_rate', 0) * 100:.0f}%")
+
+        self._doc.add_paragraph()
+        p = self._doc.add_paragraph()
+        run = p.add_run(
+            f"Sources: {summary.get('covered_sources', 0)} of "
+            f"{summary.get('total_sources', 0)} used | "
+            f"Knowledge areas: {summary.get('total_clusters', 0)}"
+        )
+        run.font.size = Pt(10)
+        run.font.italic = True
+
+        unused = summary.get("unused_by_category", {})
+        if unused and any(v > 0 for v in unused.values()):
+            self._doc.add_paragraph()
+            self._doc.add_heading("Unused Fact Profile", level=2)
+            for cat, count in unused.items():
+                if count > 0:
+                    label = cat.replace("_", " ").title()
+                    p = self._doc.add_paragraph(f"  \u2022 {label}: {count}")
+                    p.paragraph_format.space_after = Pt(2)
 
     def _add_evidence_appendix(self, sections: List[SectionContent]):
         appendix_heading = self._doc.add_heading("Appendix: Evidence Traceability", level=1)
@@ -131,6 +227,30 @@ class DOCXV2Generator:
                         src_run = p.add_run(f"  [{block.evidence_source}]")
                         src_run.font.size = Pt(9)
                         src_run.font.color.rgb = RGBColor(128, 128, 128)
+
+    def _add_references(self, sections: List[SectionContent]):
+        heading = self._doc.add_heading("References", level=1)
+        seen_sources: Dict[str, int] = {}
+        for section in sections:
+            for block in section.blocks:
+                if isinstance(block, ParagraphBlock):
+                    for c in block.citations:
+                        if c.source and c.source not in seen_sources:
+                            seen_sources[c.source] = len(seen_sources) + 1
+                elif isinstance(block, BulletListBlock):
+                    for item in block.items:
+                        for c in item.citations:
+                            if c.source and c.source not in seen_sources:
+                                seen_sources[c.source] = len(seen_sources) + 1
+
+        if not seen_sources:
+            p = self._doc.add_paragraph("No external references were cited in this report.")
+            p.runs[0].font.italic = True
+            return
+
+        for source, idx in seen_sources.items():
+            p = self._doc.add_paragraph(f"[{idx}] {source}")
+            p.paragraph_format.space_after = Pt(2)
 
     def _render_section(self, section: SectionContent):
         for block in section.blocks:

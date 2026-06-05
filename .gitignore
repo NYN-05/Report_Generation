@@ -70,6 +70,11 @@ coverage.xml
 *.docx
 
 memory_hub_state.json
+
+# --- Knowledge documents (ignore non-markdown) ---
+knowledge/*
+!knowledge/*.md
+
 *.bak
 *.pdf
 output/

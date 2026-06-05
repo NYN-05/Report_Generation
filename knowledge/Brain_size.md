@@ -1,0 +1,102 @@
+# Brain size
+
+*Source: [Wikipedia](https://en.wikipedia.org/wiki/Brain_size)*
+*Collected: 2026-06-05 17:53:10*
+
+The size of the brain is a frequent topic of study within the fields of anatomy, biological anthropology, animal science and evolution. Measuring brain size and cranial capacity is relevant both to humans and other animals, and can be done by weight or volume via MRI scans, by skull volume, or by neuroimaging intelligence testing. 
+The relationship between brain size and intelligence has been a controversial and frequently investigated question. In 2021  scientists from Stony Brook University and the Max Planck Institute of Animal Behavior published findings showing that the brain size to body size ratio of different species has changed over time in response to a variety of conditions and events. 
+As Kamran Safi, researcher at the Max Planck Institute of Animal Behavior and the study's senior author writes:
+"Sometimes, relatively big brains can be the end result of a gradual decrease in body size to suit a new habitat or way of moving—in other words, nothing to do with intelligence at all."
+
+
+== Humans ==
+In humans, the right cerebral hemisphere is typically larger than the left, whereas the cerebellar hemispheres are typically closer in size. The adult human brain weighs on average about 1.3 kg (2.9 lb). In men the average weight is about 1370 g and in women about 1200 g. The volume is around 1260 cm3 in men and 1130 cm3 in women, although there is substantial individual variation. Yet another study found that adult human brain weight is 1300–1400 g for adult humans and 350–400 g for newborn humans. There is a range of volume and weights, and not just one number that one can definitively rely on. Variation between humans of similar age is smaller than that between species. The mechanisms of interspecific and intraspecific variation also differ.
+
+
+== Variation and evolution ==
+
+From early primates to hominids and finally to Homo sapiens, the brain gets progressively larger - with the exception of extinct Neanderthals whose brain size exceeded that of modern Homo sapiens. The volume of the human brain has increased as humans have evolved (see Homininae), starting from about 600 cm3 in Homo habilis up to 1680 cm3 in Homo neanderthalensis, which was the hominid with the biggest brain size. Some data suggest that the average brain size has decreased since then. One study concludes that the decrease "was surprisingly recent, occurring in the last 3,000 years". However, a reanalysis of the same data suggests that brain size has not decreased, and that the conclusion was made using datasets that are too dissimilar to support quantitative comparison.
+ Richerson and  Boyd point out disadvantages to large brain-size.
+Proponents of recent changes in brain size draw attention to the gene mutation that causes microcephaly, a neural developmental disorder that affects cerebral cortical volume. Similarly, sociocultural explanations draw attention to externalization of knowledge and group decision-making, partly via the advent of social systems of distributed cognition, social organization, division of labor and sharing of information as possible causes.
+
+
+=== H. floresiensis' small brain ===
+Homo floresiensis is a hominin from the island of Flores in Indonesia with fossils dating from 60,000-100,000 years ago. Despite its relatively derived position in the hominin phylogeny, CT imaging of its skull reveals that its brain volume was only 417 cm3, less than that of even Homo habilis, which is believed to have gone extinct far earlier (around 1.65 million years ago.). The reason for this regression in brain size is believed to be island syndrome, in which the brains of insular species become smaller due to reduced predation-risk. A smaller brain is beneficial as it reduces the basal metabolic rate without significant increases in predation risk.
+
+
+=== Hydrocephalus ===
+Exceptional cases of hydrocephalus, such as that reported by John Lorber in 1980 and by a study with rats, suggest that relatively high levels of intelligence and relatively normal functioning are possible even with very small brains. It is unclear what conclusions to draw from such reports – such as about brain capacities, redundancies, mechanics and size requirements.
+
+
+== Biogeographic variation ==
+Efforts to find racial or ethnic variation in brain size are generally considered to be a pseudoscientific endeavor and have traditionally been tied to scientific racism and attempts to demonstrate a racial intellectual hierarchy.
+The majority of efforts to demonstrate this have relied on indirect data that assessed skull measurements as opposed to direct brain observations. These are considered scientifically discredited.
+A large-scale 1984 survey of global variation in skulls has concluded that variation in skull and head sizes is unrelated to race, but rather climatic heat preservation, stating "We find little support for the use of brain size in taxonomic assessment (other than with paleontological extremes over time). Racial taxonomies which include cranial capacity, head shape, or any other trait influenced by climate confound ecotypic and phyletic causes. For Pleistocene hominids, we doubt that the volume of the braincase is any more taxonomically 'valuable' than any other trait."
+
+
+== Sex ==
+
+A human baby's brain at birth averages 369 cm3 and increases, during the first year of life, to about 961 cm3, after which the growth rate declines. Brain volume peaks at the teenage years, and after the age of 40 it begins declining at 5% per decade, speeding up around 70. Average adult male brain weight is 1,345 grams (47.4 oz), while an adult female has an average brain weight of 1,222 grams (43.1 oz). (This does not take into account neuron density nor brain-to-body mass ratio; men on average also have larger bodies than women.) Males have been found to have on average greater cerebral, cerebellar and cerebral cortical lobar volumes, except possibly left parietal. The gender differences in size vary by more specific brain regions. Studies have tended to indicate that men have a relatively larger amygdala and hypothalamus, while women have a relatively larger caudate and hippocampi. When covaried for intracranial volume, height, and weight, Kelly (2007) indicates women have a higher percentage of gray matter, whereas men have a higher percentage of white matter and cerebrospinal fluid. There is high variability between individuals in these studies, however.
+However, Yaki (2011) found no statistically significant gender differences in the gray matter ratio for most ages (grouped by decade), except in the 3rd and 6th decades of life in the sample of 758 women and 702 men aged 20–69. The average male in their third decade (ages 20–29) had a significantly higher gray matter ratio than the average female of the same age group. In contrast, among subjects in their sixth decade, the average woman had a significantly larger gray matter ratio, though no meaningful difference was found among those in their 7th decade of life.
+Total cerebral and gray matter volumes peak during the ages from 10–20 years (earlier in girls than boys), whereas white matter and ventricular volumes increase. There is a general pattern in neural development of childhood peaks followed by adolescent declines (e.g. synaptic pruning). Consistent with adult findings, average cerebral volume is approximately 10% larger in boys than girls. However, such differences should not be interpreted as imparting any sort of functional advantage or disadvantage; gross structural measures may not reflect functionally relevant factors such as neuronal connectivity and receptor density, and of note is the high variability of brain size even in narrowly defined groups, for example children at the same age may have as much as a 50% differences in total brain volume. Young girls have on average relative larger hippocampal volume, whereas the amygdalae are larger in boys. However, multiple studies have found a higher synaptic density in males: a 2008 study reported that men had a significantly higher average synaptic density of 12.9 × 108 per cubic millimeter, whereas in women it was 8.6 × 108 per cubic millimeter, a 33% difference. Other studies have found an average of 4 billion more neurons in the male brain, corroborating this difference, as each neuron has on average 7,000 synaptic connections to other neurons.
+Significant dynamic changes in brain structure take place through adulthood and aging, with substantial variation between individuals. In later decades, men show greater volume loss in whole brain volume and in the frontal lobes, and temporal lobes, whereas in women there is increased volume loss in the hippocampi and parietal lobes. Men show a steeper decline in global gray matter volume, although in both sexes it varies by region with some areas exhibiting little or no age effect. Overall white matter volume does not appear to decline with age, although there is variation between brain regions.
+
+
+== Genetic contribution ==
+Adult twin studies have indicated high heritability estimates for overall brain size in adulthood (between 66% and 97%). The effect varies regionally within the brain, however, with high heritabilities of frontal lobe volumes (90-95%), moderate estimates in the hippocampi (40-69%), and environmental factors influencing several medial brain areas. In addition, lateral ventricle volume appears to be mainly explained by environmental factors, suggesting such factors also play a role in the surrounding brain tissue. Genes may cause the association between brain structure and cognitive functions, or the latter may influence the former during life. A number of candidate genes have been identified or suggested, but they await replication.
+
+
+== Intelligence ==
+
+Studies demonstrate a correlation between brain size and intelligence, larger brains predicting higher intelligence. It is however not clear if the correlation is causal. The majority of MRI studies report moderate correlations around 0.3 to 0.4 between brain volume and intelligence. The most consistent associations are observed within the frontal, temporal, and parietal lobes, the hippocampus, and the cerebellum, but only account for a relatively small amount of variance in IQ, which suggests that while brain size may be related to human intelligence, other factors also play a role. In addition, brain volumes do not correlate strongly with other and more specific cognitive measures. In men, IQ correlates more with gray matter volume in the frontal lobe and parietal lobe, which is roughly involved in sensory integration and attention, whereas in women it correlates with gray matter volume in the frontal lobe and Broca's area, which is involved in language.
+Research measuring brain volume, P300 auditory evoked potentials, and intelligence shows a dissociation, such that both brain volume and speed of P300 correlate with measured aspects of intelligence, but not with each other. Evidence conflicts on the question of whether brain size variation also predicts intelligence between siblings, as some studies find moderate correlations and others find none. A recent review by Nesbitt, Flynn et al. (2012) points out that crude brain size is unlikely to be an accurate measure of IQ. Brain size is known to differ between men and women, for example (men on average have larger bodies than women), but without well documented differences in IQ. A 2017 study found that the brains of women have a higher density of grey matter, which could compensate for the loss of volume.
+A discovery in recent years is that the structure of the adult human brain changes when a new cognitive or motor skill, including vocabulary, is learned. Structural neuroplasticity (increased gray matter volume) has been demonstrated in adults after three months of training in a visual-motor skill, as the qualitative change (i.e. learning of a new task) appear more critical for the brain to change its structure than continued training of an already-learned task. Such changes (e.g. revising for medical exams) have been shown to last for at least 3 months without further practicing; other examples include learning novel speech sounds, musical ability, navigation skills and learning to read mirror-reflected words.
+
+
+== Other animals ==
+The largest brains are those of sperm whales, weighing about 8 kg (18 lb). An elephant's brain weighs just over 5 kg (11 lb), a bottlenose dolphin's 1.5 to 1.7 kg (3.3 to 3.7 lb), whereas a human brain is around 1.3 to 1.5 kg (2.9 to 3.3 lb). Brain size tends to vary according to body size. The relationship is not proportional, though: the brain-to-body mass ratio varies. The largest ratio found is in the shrew. Averaging brain weight across all orders of mammals, it follows a power law, with an exponent of about 0.75. There are good reasons to expect a power law: for example, the body-size to body-length relationship follows a power law with an exponent of 0.33, and the body-size to surface-area relationship follows a power law with an exponent of 0.67. The explanation for an exponent of 0.75 is not obvious; however, it is worth noting that several physiological variables appear to be related to body size by approximately the same exponent—for example, the basal metabolic rate.
+This power law formula applies to the "average" brain of mammals taken as a whole, but each family (cats, rodents, primates, etc.) departs from it to some degree, in a way that generally reflects the overall "sophistication" of behavior. Primates, for a given body size, have brains 5 to 10 times as large as the formula predicts. Predators tend to have relatively larger brains than the animals they prey on; placental mammals (the great majority) have relatively larger brains than marsupials such as the opossum. A standard measure for assessing an animal's brain size compared to what would be expected from its body size is known as the encephalization quotient. The encephalization quotient for humans is between 7.4-7.8.
+When the mammalian brain increases in size, not all parts increase at the same rate. In particular, the larger the brain of a species, the greater the fraction taken up by the cortex. Thus, in the species with the largest brains, most of their volume is filled with cortex: this applies not only to humans, but also to animals such as dolphins, whales or elephants. The evolution of Homo sapiens over the past two million years has been marked by a steady increase in brain size, but much of it can be accounted for by corresponding increases in body size. There are, however, many departures from the trend that are difficult to explain in a systematic way: in particular, the appearance of modern man about 100,000 years ago was marked by a decrease in body size at the same time as an increase in brain size. Even so, it is noteworthy that Neanderthals, which became extinct about 40,000 years ago, had larger brains than modern Homo sapiens.
+Not all investigators are happy with the amount of attention that has been paid to brain size. Roth and Dicke, for example, have argued that factors other than size are more highly correlated with intelligence, such as the number of cortical neurons and the speed of their connections. Moreover, they point out that intelligence depends not just on the amount of brain tissue, but on the details of how it is structured. It is also well known that crows, ravens, and grey parrots are quite intelligent even though they have small brains.
+While humans have the largest encephalization quotient of extant animals, it is not out of line for a primate. Some other anatomical trends are correlated in the human evolutionary path with brain size: the basicranium becomes more flexed with increasing brain size relative to basicranial length.
+
+
+== Cranial capacity ==
+Cranial capacity is a measure of the volume of the interior of the skull of those vertebrates who have a brain. The most commonly used unit of measure is the cubic centimeter (cm3). The volume of the cranium is used as a rough indicator of the size of the brain, and this in turn is used as a rough indicator of the potential intelligence of the organism. Cranial capacity is often tested by filling the cranial cavity with glass beads and measuring their volume, or by CT scan imaging. A more accurate way of measuring cranial capacity, is to make an endocranial cast and measure the amount of water the cast displaces. In the past there have been dozens of studies done to estimate cranial capacity on skulls. Most of these studies have been done on dry skull using linear dimensions, packing methods or occasionally radiological methods.
+Knowledge of the volume of the cranial cavity can be important in studying populations that differ by geographical, racial, or ethnic origin. Cranial capacity is influenced by environmental factors such as nutrition. It is also used to examine correlations between cranial capacity and other cranial measurements, and to compare skulls from different species. Cranial capacity measurements are commonly applied in the study of abnormalities of cranial size and shape and in research on brain growth and development. Cranial capacity is an indirect method of estimating brain size. A few studies have estimated cranial capacity in living individuals using linear cranial dimensions.
+However, larger cranial capacity is not always indicative of a more intelligent organism, since larger capacities are required for controlling a larger body, or in many cases are an adaptive feature for life in a colder environment. For instance, among modern Homo sapiens, northern populations have a 20% larger visual cortex than those in the southern latitude populations, and this potentially explains the population differences in human brain size (and roughly cranial capacity). Neurological functions are determined more by the organization of the brain rather than the volume. Individual variability is also important when considering cranial capacity, for example the average Neanderthal cranial capacity for females was 1300 cm3 and 1600 cm3 for males. Neanderthals had larger eyes and bodies relative to their height, thus a disproportionately large area of their brain was dedicated to somatic and visual processing, functions not normally associated with intelligence. When these areas were adjusted to match anatomically modern human proportions it was found Neanderthals had brains 15-22% smaller than in anatomically-modern humans. When the neanderthal version of the NOVA1 gene is inserted into stem cells it creates neurons with fewer synapses than stem cells containing the human version.
+Parts of a cranium found in China in the 1970s show that the young man had a cranial capacity of around 1700 cm3 at least 160,000 years ago. This is greater than the average of modern humans.
+In an attempt to use cranial capacity as an objective indicator of brain size, the encephalization quotient (EQ) was developed in 1973 by Harry Jerison. It compares the size of the brain of the specimen to the expected brain size of animals with roughly the same weight. This way a more objective judgement can be made on the cranial capacity of an individual animal. A large scientific collection of brain endocasts and measurements of cranial capacity has been compiled by Holloway.
+Examples of cranial capacity
+Apes
+
+Orangutans: 275–500 cm3
+Chimpanzees: 275–500 cm3
+Gorillas: 340–752 cm3
+Homininians
+
+Anatomically-modern human: average 1473 cm3
+Neanderthals: 1500–1740 cm3
+Xujiayao 6 (160 to 200 ka ago): ca. 1700 cm3
+Homo erectus: 850–1100 cm3
+Australopithecus anamensis: 365–370 cm3
+Australopithecus afarensis: 438 cm3
+Australopithecus africanus: 452 cm3
+Paranthropus boisei: 521 cm3
+Paranthropus robustus: 530 cm3
+
+
+== See also ==
+Brain-to-body mass ratio
+Encephalization quotient
+List of animals by number of neurons
+Craniometry — includes historical discussion
+Neuroscience and intelligence
+Human brain
+
+
+== References ==
+
+
+== Further reading ==
+Jabr, Ferris (28 November 2015). "How Humans Ended Up With Freakishly Huge Brains". Wired. Retrieved 29 November 2015.

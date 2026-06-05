@@ -2,7 +2,7 @@ import sys
 import time
 import argparse
 from pathlib import Path
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Set
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -12,19 +12,22 @@ from src.facts.extractor import FactExtractor
 from src.facts.validator import FactValidator
 from src.facts.store import FactStore, FactStoreConfig
 from src.facts.models import SourceReference
-from src.generator.fact_driven_generator import FactDrivenGenerator
-from src.generator.blueprint_builder import BlueprintBuilder
-from src.generator.report_planner import ReportPlanner
+from src.generator.fact_driven_generator import SynthesisGenerator
+from src.generator.report_architect import ReportArchitect
+from src.analysis.knowledge_model import KnowledgeAnalyzer
+from src.analysis.coverage_auditor import KnowledgeCoverageAuditor
 from src.validation.hallucination_detector import HallucinationDetector
 from src.quality.unified_score import compute_pre_generation_score, compute_post_generation_score
 from src.providers.factory import get_default_provider
 from src.evidence.external_acquisition import ExternalAcquisitionPipeline
+from src.collection.knowledge_collector import KnowledgeCollector
 
 logger = get_logger("main")
 
 
 def run(topic: str, knowledge_dir: str = "knowledge", output_path: str = "output/output.docx",
-        web_search: bool = False, tavily: bool = False, min_coverage: float = 0.3):
+        web_search: bool = False, tavily: bool = False, min_coverage: float = 0.3,
+        collect: bool = False):
     out_path = Path(output_path)
     if out_path.suffix.lower() == ".pdf":
         docx_path = str(out_path.with_suffix(".docx"))
@@ -36,6 +39,15 @@ def run(topic: str, knowledge_dir: str = "knowledge", output_path: str = "output
     print(f"\n{'='*60}")
     print(f"  EVIDENCE-FIRST REPORT: {topic}")
     print(f"{'='*60}\n")
+    if collect:
+        print(f"  Collecting knowledge from free web sources...")
+        collector = KnowledgeCollector(knowledge_dir)
+        saved = collector.collect(topic)
+        if saved:
+            print(f"  [OK] {saved} document(s) saved to '{knowledge_dir}'")
+        else:
+            print(f"  [INFO] No new documents collected")
+
     t0 = time.time()
 
     provider = get_default_provider()
@@ -82,22 +94,22 @@ def run(topic: str, knowledge_dir: str = "knowledge", output_path: str = "output
     print(f"  [OK] {total_facts} facts extracted ({fact_store.get_statistics()['total']} in store)")
 
     print(f"  [3/8] Understanding topic and planning report structure...")
-    generator = FactDrivenGenerator(fact_store, provider)
-    planner = ReportPlanner(fact_store, provider)
-    report_plan = planner.plan(topic, min_facts=3)
-    blueprint = report_plan.sections
-    threshold_sections = [s for s in blueprint if s.meets_threshold]
-    if not threshold_sections:
+    generator = SynthesisGenerator(fact_store, provider)
+    analyzer = KnowledgeAnalyzer(fact_store, provider)
+    knowledge_model = analyzer.analyze(topic)
+    architect = ReportArchitect(fact_store, knowledge_model, provider)
+    report_plan = architect.design(min_facts=3)
+    sections = report_plan.sections
+    active = report_plan.active_sections
+    if not active:
         print(f"  [FAIL] No evidence-based sections meet minimum threshold")
-        print(f"\n  The system found no facts meeting minimum evidence requirements.")
-        print(f"  Upload documents with more content, or reduce min_facts.")
         return False
-    pruned = [s for s in blueprint if not s.meets_threshold]
+    pruned = [s for s in sections if not s.meets_threshold]
     for s in pruned:
         print(f"    [PRUNED] {s.heading} ({s.pruning_reason})")
-    print(f"  [OK] {len(threshold_sections)}/{len(blueprint)} sections "
-          f"({report_plan.utilized_facts}/{fact_store.get_statistics()['total']} facts utilized, "
-          f"{report_plan.report_type})")
+    print(f"  [OK] {len(active)}/{len(sections)} sections "
+          f"(utilization: {report_plan.utilization_rate:.1%} of "
+          f"{report_plan.total_facts_available} facts, {report_plan.report_type})")
 
     if web_search:
         backends = "DuckDuckGo"
@@ -109,37 +121,62 @@ def run(topic: str, knowledge_dir: str = "knowledge", output_path: str = "output
             coverage_threshold=min_coverage,
             min_voting_sources=2,
         )
-        needs_acq, low_sections = acquisition.check_coverage(blueprint)
+        needs_acq, low_sections = acquisition.check_coverage(sections)
         if needs_acq:
             print(f"  [INFO] Coverage below threshold for: {', '.join(low_sections)}")
             print(f"  [INFO] Acquiring external evidence...")
-            added = acquisition.acquire(topic, blueprint, max_results_per_source=3, use_tavily=tavily)
+            added = acquisition.acquire(topic, sections, max_results_per_source=3, use_tavily=tavily)
             if added:
                 print(f"  [OK] {added} verified external facts added to store")
-                print(f"  [INFO] Rebuilding blueprint with enriched evidence...")
-                blueprint = builder.build(topic, min_facts=3)
-                print(f"  [OK] {len(blueprint)} sections now defined ({fact_store.get_statistics()['total']} total facts)")
+                print(f"  [INFO] Rebuilding knowledge model...")
+                knowledge_model = analyzer.analyze(topic, max_facts_per_cluster=60)
+                architect = ReportArchitect(fact_store, knowledge_model, provider)
+                report_plan = architect.design(min_facts=3)
+                sections = report_plan.sections
+                active = report_plan.active_sections
+                print(f"  [OK] {len(active)} sections now defined "
+                      f"(utilization: {report_plan.utilization_rate:.1%})")
             else:
                 print(f"  [INFO] No new verified external facts")
         else:
             print(f"  [OK] Coverage sufficient ({min_coverage:.0%}) — no external acquisition needed")
 
-    print(f"  [4/8] Generating fact-driven report...")
+    print(f"  [4/9] Running coverage audit...")
+    auditor = KnowledgeCoverageAuditor(fact_store, provider)
+
     section_contents = []
     section_scores = []
-    for section in blueprint:
-        if not section.meets_threshold:
-            print(f"    [SKIP] {section.heading} ({section.pruning_reason})")
-            continue
+
+    print(f"  [5/9] Synthesizing report from knowledge clusters...")
+    for section in active:
         pre_score = compute_pre_generation_score(section.facts)
-        print(f"    Generating {section.heading} ({len(section.facts)} facts, score={pre_score:.0%})...")
-        dominant_type = section.facts[0].fact_type.value if section.facts else "general"
-        gen_section = generator.generate_section(dominant_type, section.heading, section.facts, topic)
+        print(f"    Synthesizing {section.heading} ({len(section.facts)} facts, score={pre_score:.0%})...")
+        gen_section = generator.generate_section(
+            section.heading, section.heading, section.facts, topic,
+            sub_themes=section.sub_themes,
+            key_findings=section.key_findings,
+        )
         section_contents.append(gen_section)
         post_score = compute_post_generation_score(gen_section.to_text(), section.facts)
         section_scores.append({"heading": section.heading, **post_score})
 
-    print(f"  [5/8] Validating against hallucinations...")
+    generated_fact_lists = [s.facts for s in active]
+
+    coverage_audit = auditor.audit(
+        knowledge_model, generated_fact_lists,
+        threshold=0.60
+    )
+    utilization_warn = ""
+    if coverage_audit.needs_expansion:
+        utilization_warn = (
+            f"\n  [WARN] Fact utilization {coverage_audit.utilization_rate:.1%} "
+            f"below 60% target "
+            f"({coverage_audit.generated_facts}/{coverage_audit.total_facts})"
+        )
+        for rec in coverage_audit.expansion_recommendations[:3]:
+            utilization_warn += f"\n    * {rec}"
+
+    print(f"  [6/9] Validating against hallucinations...")
     detector = HallucinationDetector(fact_store)
     sections_text = {sc.heading: sc.to_text() for sc in section_contents}
     result = detector.check_report(fact_store, sections_text)
@@ -151,36 +188,51 @@ def run(topic: str, knowledge_dir: str = "knowledge", output_path: str = "output
         if filtered:
             print(f"  [FIX] Replaced {filtered} hallucinated paragraph(s) with source-required blocks")
 
-    print(f"  [6/8] Computing evidence quality...")
-    all_facts = fact_store.get_all_facts()
-    for i, sc in enumerate(section_contents):
-        text = sc.to_text()
-        bs = [s for s in blueprint if s.meets_threshold][i] if i < len([s for s in blueprint if s.meets_threshold]) else None
-        post = section_scores[i]
-        print(f"    {post['heading']}: unified={post['unified_score']:.0%} "
-              f"fidelity={post['evidence_fidelity']:.0%} "
-              f"risk={post['hallucination_risk']:.0%} "
-              f"traceability={post['traceability']:.0%}")
+    print(f"  [7/9] Computing evidence quality & utilization...")
+    unused_summary = coverage_audit.unused_by_category
+    for sc in section_contents:
+        for si in section_scores:
+            if si["heading"] == sc.heading:
+                print(f"    {sc.heading}: unified={si['unified_score']:.0%} "
+                      f"fidelity={si['evidence_fidelity']:.0%} "
+                      f"risk={si['hallucination_risk']:.0%}")
+                break
+    if unused_summary:
+        cats = " | ".join(f"{k}={v}" for k, v in unused_summary.items() if v > 0)
+        print(f"    Unused fact profile: {cats}")
+    if utilization_warn:
+        print(utilization_warn)
 
-    print(f"  [7/7] Assembling DOCX...")
+    print(f"  [8/9] Assembling DOCX...")
     try:
         from src.document.docx_v2_generator import DOCXV2Generator
         docx_gen = DOCXV2Generator()
         subtitle = f"A {report_plan.report_type.replace('_', ' ').title()} Report"
+        kf_section = generator.generate_key_findings_section(
+            knowledge_model.clusters
+        )
+        utilization_summary = coverage_audit.to_dict()
         output = docx_gen.generate(
             title=topic,
             author="",
             subtitle=subtitle,
-            metadata={"domain": report_plan.domain, "report_type": report_plan.report_type},
+            metadata={
+                "domain": report_plan.domain,
+                "report_type": report_plan.report_type,
+                "audience": report_plan.audience,
+            },
             sections=section_contents,
             output_path=docx_path,
+            executive_summary=report_plan.executive_summary,
+            key_findings_section=kf_section,
+            utilization_summary=utilization_summary,
         )
         print(f"  [OK] DOCX saved: {output}")
     except Exception as e:
         print(f"  [FAIL] DOCX generation: {e}")
         return False
 
-    print(f"  [8/8] Converting to PDF...")
+    print(f"  [9/9] Converting to PDF...")
     try:
         from docx2pdf import convert
         convert(output, pdf_path_user)
@@ -199,6 +251,10 @@ def run(topic: str, knowledge_dir: str = "knowledge", output_path: str = "output
     print(f"\n{'='*60}")
     print(f"  REPORT COMPLETE in {elapsed:.1f}s")
     print(f"  Sections: {len(section_contents)} | Words: {total_words}")
+    print(f"  Fact Utilization: {coverage_audit.utilization_rate:.1%} "
+          f"({coverage_audit.generated_facts}/{coverage_audit.total_facts})")
+    print(f"  Source Coverage: {coverage_audit.source_coverage_rate:.0%} "
+          f"({coverage_audit.covered_sources}/{coverage_audit.total_sources})")
     print(f"  Unified Score: {avg_unified:.0%} | Fidelity: {avg_fidelity:.0%}")
     print(f"  Hallucination Issues: {result['total_issues']}")
     print(f"  DOCX: {output}")
@@ -216,6 +272,7 @@ def main():
     parser.add_argument("--min-coverage", type=float, default=0.3, help="Minimum coverage threshold (0-1)")
     parser.add_argument("--web-search", action="store_true", help="Enable web search (DuckDuckGo, always free)")
     parser.add_argument("--tavily", action="store_true", help="Use Tavily API (costs credits) alongside DuckDuckGo")
+    parser.add_argument("--collect", action="store_true", help="Download topic knowledge from free web sources before ingestion")
     args = parser.parse_args()
 
     if not args.topic:
@@ -225,7 +282,8 @@ def main():
 
     run(topic=args.topic, knowledge_dir=args.knowledge_dir,
         output_path=args.output, min_coverage=args.min_coverage,
-        web_search=args.web_search, tavily=args.tavily)
+        web_search=args.web_search, tavily=args.tavily,
+        collect=args.collect)
 
 
 if __name__ == "__main__":
