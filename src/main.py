@@ -103,7 +103,7 @@ def run(topic: str, knowledge_dir: str = "knowledge", output_path: str = "output
         else:
             print(f"  [OK] Coverage sufficient ({min_coverage:.0%}) — no external acquisition needed")
 
-    print(f"  [4/7] Generating fact-driven report...")
+    print(f"  [4/8] Generating fact-driven report...")
     section_contents = []
     section_confidences = []
     for section_info in blueprint:
@@ -117,7 +117,7 @@ def run(topic: str, knowledge_dir: str = "knowledge", output_path: str = "output
         confidence = generator.compute_confidence(stype, facts, paras)
         section_confidences.append(confidence)
 
-    print(f"  [5/7] Validating against hallucinations...")
+    print(f"  [5/8] Validating against hallucinations...")
     detector = HallucinationDetector(fact_store)
     sections_text = {sc.heading: sc.to_text() for sc in section_contents}
     result = detector.check_report(fact_store, sections_text)
@@ -129,7 +129,7 @@ def run(topic: str, knowledge_dir: str = "knowledge", output_path: str = "output
         if filtered:
             print(f"  [FIX] Replaced {filtered} hallucinated paragraph(s) with source-required blocks")
 
-    print(f"  [6/7] Computing evidence fidelity...")
+    print(f"  [6/8] Computing evidence fidelity...")
     all_facts = fact_store.get_all_facts()
     for i, sc in enumerate(section_contents):
         text = sc.to_text()
@@ -156,6 +156,17 @@ def run(topic: str, knowledge_dir: str = "knowledge", output_path: str = "output
         print(f"  [FAIL] DOCX generation: {e}")
         return False
 
+    pdf_path = str(Path(output).with_suffix(".pdf"))
+    print(f"  [8/8] Converting to PDF...")
+    try:
+        from docx2pdf import convert
+        convert(output, pdf_path)
+        print(f"  [OK] PDF saved: {pdf_path}")
+    except Exception as e:
+        logger.warning(f"PDF conversion failed: {e}")
+        print(f"  [INFO] PDF conversion skipped ({e})")
+        pdf_path = None
+
     elapsed = time.time() - t0
     total_words = sum(sc.total_words for sc in section_contents)
     total_facts_used = sum(sc.supporting_facts for sc in section_confidences)
@@ -169,7 +180,9 @@ def run(topic: str, knowledge_dir: str = "knowledge", output_path: str = "output
     print(f"  Evidence Coverage: {avg_coverage:.0%} | Fidelity: {avg_fidelity:.0%}")
     print(f"  Facts Used: {total_facts_used} | Sources: {sum(sc.source_count for sc in section_confidences)}")
     print(f"  Hallucination Issues: {result['total_issues']}")
-    print(f"  Output: {output}")
+    print(f"  DOCX: {output}")
+    if pdf_path:
+        print(f"  PDF:  {pdf_path}")
     print(f"{'='*60}")
     return True
 
