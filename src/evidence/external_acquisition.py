@@ -256,7 +256,7 @@ class ExternalAcquisitionPipeline:
         for section in blueprint:
             if hasattr(section, "meets_threshold"):
                 if not section.meets_threshold:
-                    low_coverage_sections.append(section.section_type)
+                    low_coverage_sections.append(getattr(section, "heading", str(section)))
             else:
                 facts = section.get("facts", [])
                 req_types = section.get("required_types", [])
