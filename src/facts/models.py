@@ -73,6 +73,11 @@ class Fact:
     metadata: Dict[str, Any] = field(default_factory=dict)
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
     is_active: bool = True
+    source_tier: int = 1
+    source_url: str = ""
+    retrieval_timestamp: str = ""
+    verification_count: int = 0
+    is_verified: bool = True
 
     def to_dict(self) -> Dict:
         return {
@@ -86,6 +91,10 @@ class Fact:
             "related_fact_ids": self.related_fact_ids[:10],
             "created_at": self.created_at,
             "is_active": self.is_active,
+            "source_tier": self.source_tier,
+            "source_url": self.source_url,
+            "verification_count": self.verification_count,
+            "is_verified": self.is_verified,
         }
 
     def deactivate(self):

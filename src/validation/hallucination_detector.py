@@ -4,6 +4,7 @@ import re
 from src.core.logger import get_logger
 from src.facts.models import Fact, FactType, MetricFact, ResultFact
 from src.facts.store import FactStore
+from src.generator.content_blocks import SectionContent, ParagraphBlock, SourceRequiredBlock
 
 logger = get_logger(__name__)
 
@@ -133,10 +134,9 @@ class HallucinationDetector:
     def _is_supported_by_facts(self, claim: str, fact_store: FactStore,
                                 required_types: Set[FactType]) -> bool:
         claim_lower = claim.lower()
-        fact_ids = fact_store.search_by_value(claim_lower[:50])
+        matched_facts = fact_store.search_by_value(claim_lower[:50])
         matched_types = set()
-        for fid in fact_ids[:20]:
-            fact = fact_store.get(fid)
+        for fact in matched_facts[:20]:
             if fact and fact.is_active:
                 if any(phrase in claim_lower for phrase in fact.normalized_value.split()[:5]):
                     matched_types.add(fact.fact_type)
@@ -161,7 +161,7 @@ class HallucinationDetector:
             "total_issues": len(all_issues),
             "unsupported_claims": len(unsupported_claims),
             "warnings": len(warnings),
-            "issues": [i.to_dict() for i in all_issues],
+            "issues": all_issues,
             "has_hallucinations": len(unsupported_claims) > 0,
         }
 
@@ -227,6 +227,39 @@ class HallucinationDetector:
         elif issue.issue_type in ("unsupported_technology", "unsupported_architecture"):
             return f"[{issue.issue_type.replace('unsupported_', '').upper()} FROM SOURCE REQUIRED]"
         return "[SOURCE MATERIAL REQUIRED]"
+
+    def filter_sections(self, sections: List[SectionContent], issues: List[Dict]) -> int:
+        filtered_count = 0
+        for section in sections:
+            section_issues = []
+            for issue in issues:
+                loc = issue.get("location", "") if isinstance(issue, dict) else getattr(issue, "location", "")
+                prefix = f"{section.heading}_p"
+                if loc.startswith(prefix):
+                    try:
+                        para_idx = int(loc.split("_p")[-1])
+                        section_issues.append((para_idx, issue))
+                    except ValueError:
+                        continue
+            if not section_issues:
+                continue
+            high_severity_indices = set()
+            for idx, iss in section_issues:
+                sev = iss.get("severity", "") if isinstance(iss, dict) else getattr(iss, "severity", "")
+                if sev == "high" and 0 <= idx < len(section.blocks):
+                    block = section.blocks[idx]
+                    if hasattr(block, 'text') and getattr(block, 'text', ''):
+                        high_severity_indices.add(idx)
+            for idx in sorted(high_severity_indices, reverse=True):
+                msg = "Insufficient source material available for this claim."
+                section.blocks[idx] = SourceRequiredBlock(
+                    query=section.heading,
+                    message=msg,
+                )
+                filtered_count += 1
+        if filtered_count:
+            logger.info(f"Post-generation filtering replaced {filtered_count} hallucinated paragraphs")
+        return filtered_count
 
     def get_all_issues(self) -> List[HallucinationIssue]:
         return list(self._issues)

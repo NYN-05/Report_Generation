@@ -14,6 +14,7 @@ from src.generator.content_blocks import (
     TableBlock, TableRow, FigureBlock, HeadingBlock,
     SourceRequiredBlock, ContentBlock,
 )
+from docx.shared import RGBColor
 from src.document.styles import StyleManager, DocumentStyleValidator
 
 logger = get_logger(__name__)
@@ -144,7 +145,7 @@ class DOCXV2Generator:
             if cite_text:
                 cite_run = p.add_run(f" {cite_text}")
                 cite_run.font.size = Pt(10)
-                cite_run.font.color.rgb = self._styles._parse_color("#808080")
+                cite_run.font.color.rgb = RGBColor(*self._styles._parse_color("#808080"))
 
     def _render_bullet_list(self, block: BulletListBlock):
         s = self._styles.get_styles()
@@ -209,6 +210,6 @@ class DOCXV2Generator:
         p = self._doc.add_paragraph()
         run = p.add_run(block.message)
         run.italic = True
-        run.font.color.rgb = self._styles._parse_color("#B43232")
+        run.font.color.rgb = RGBColor(*self._styles._parse_color("#B43232"))
         run.font.size = Pt(10)
         run.font.name = self._styles.get_styles().content.font.name

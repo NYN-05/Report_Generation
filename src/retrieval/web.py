@@ -180,6 +180,7 @@ class WebSearchRetriever(BaseRetriever):
     def _search_with_retry(self, query: str, top_k: int,
                             max_retries: int = 3) -> List[Dict]:
         """Search with rate-limit acquisition and 429 retry logic."""
+        import requests as _req
         if not _try_import("requests"):
             logger.warning("requests not installed — cannot perform web search")
             return []
@@ -203,6 +204,10 @@ class WebSearchRetriever(BaseRetriever):
                     json=payload,
                     timeout=15,
                 )
+
+                if resp.status_code == 401:
+                    logger.warning("Tavily API key rejected (401) — skipping")
+                    return []
 
                 if resp.status_code == 429:
                     retry_after = float(resp.headers.get("retry-after", 60))
@@ -244,7 +249,7 @@ class WebSearchRetriever(BaseRetriever):
                 )
                 return chunks
 
-            except requests.exceptions.Timeout:
+            except _req.exceptions.Timeout:
                 last_error = "timeout"
                 logger.warning(
                     f"Web search timeout (attempt {attempt}/{max_retries})"
@@ -253,7 +258,7 @@ class WebSearchRetriever(BaseRetriever):
                     time.sleep(2 ** attempt)
                     continue
 
-            except requests.exceptions.RequestException as e:
+            except _req.exceptions.RequestException as e:
                 last_error = str(e)
                 logger.warning(
                     f"Web search failed (attempt {attempt}/{max_retries}): {e}"
@@ -267,6 +272,127 @@ class WebSearchRetriever(BaseRetriever):
 
     def get_rate_stats(self) -> Dict:
         return self._limiter.stats
+
+
+class DuckDuckGoSearch:
+    """DuckDuckGo web search — no API key required.
+
+    Uses the public HTML endpoint and parses results with BeautifulSoup.
+    Rate-limited with a 1-second delay between queries.
+    """
+
+    def __init__(self, max_results: int = 5):
+        self._max_results = max_results
+        self._cache: Dict[str, List[Dict]] = {}
+        self._last_request = 0.0
+
+    def is_ready(self) -> bool:
+        return True
+
+    def search(self, query: str, max_results: Optional[int] = None) -> List[Dict]:
+        k = max_results or self._max_results
+        cache_key = f"ddg:{query}:{k}"
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+
+        results = self._fetch(query, k)
+        self._cache[cache_key] = results
+        return results
+
+    def _fetch(self, query: str, max_results: int) -> List[Dict]:
+        import requests as _req
+        now = time.time()
+        since_last = now - self._last_request
+        if since_last < 1.0:
+            time.sleep(1.0 - since_last)
+
+        try:
+            from bs4 import BeautifulSoup
+            session = _req.Session()
+            session.headers.update({
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Accept": "text/html,application/xhtml+xml",
+            })
+            resp = session.post(
+                "https://html.duckduckgo.com/html/",
+                data={"q": query},
+                timeout=15,
+            )
+            resp.raise_for_status()
+            self._last_request = time.time()
+
+            soup = BeautifulSoup(resp.text, "lxml")
+            results = []
+            for result in soup.select(".result")[:max_results]:
+                link_el = result.select_one(".result__a")
+                snippet_el = result.select_one(".result__snippet")
+                if not link_el:
+                    continue
+                title = link_el.get_text(strip=True)
+                href_el = link_el.get("href", "")
+                url = ""
+                if "uddg=" in str(href_el):
+                    from urllib.parse import parse_qs, urlparse
+                    parsed = urlparse(str(href_el))
+                    qs = parse_qs(parsed.query)
+                    url = qs.get("uddg", [""])[0]
+                snippet = snippet_el.get_text(strip=True) if snippet_el else ""
+                text = f"[Web: {title}]\n{snippet}" if snippet else f"[Web: {title}]"
+                if not title and not snippet:
+                    continue
+                results.append({
+                    "text": text,
+                    "metadata": {
+                        "source": f"web:duckduckgo:{url or title}",
+                        "heading": title,
+                        "url": url,
+                        "score": max(1.0 - (len(results) * 0.15), 0.1),
+                    },
+                    "score": max(1.0 - (len(results) * 0.15), 0.1),
+                    "rerank_score": max(1.0 - (len(results) * 0.15), 0.1),
+                })
+
+            logger.info(f"DuckDuckGo '{query[:60]}' → {len(results)} results")
+            return results
+
+        except Exception as e:
+            logger.warning(f"DuckDuckGo search failed: {e}")
+            return []
+
+
+def search_web(topic: str, max_results_per_source: int = 5) -> List[Dict]:
+    """Multi-backend web search — tries all available backends.
+
+    Returns merged, deduplicated chunks ready for fact extraction.
+    Backends: Tavily (if API key set), DuckDuckGo (always available).
+    """
+    all_chunks: List[Dict] = []
+
+    tavily = WebSearchRetriever(max_results_per_query=max_results_per_source)
+    if tavily.is_ready():
+        try:
+            tavily_chunks = tavily.retrieve(topic, max_results_per_source)
+            all_chunks.extend(tavily_chunks)
+            logger.info(f"Tavily returned {len(tavily_chunks)} results")
+        except Exception as e:
+            logger.warning(f"Tavily search failed: {e}")
+
+    ddg = DuckDuckGoSearch(max_results=max_results_per_source)
+    ddg_results = ddg.search(topic, max_results_per_source)
+    all_chunks.extend(ddg_results)
+    logger.info(f"DuckDuckGo returned {len(ddg_results)} results")
+
+    seen = set()
+    deduped = []
+    for ch in all_chunks:
+        text = ch.get("text", "")[:200]
+        if text and text not in seen:
+            seen.add(text)
+            deduped.append(ch)
+
+    deduped.sort(key=lambda x: x.get("rerank_score", x.get("score", 0)), reverse=True)
+    logger.info(f"Web search total: {len(all_chunks)} raw → {len(deduped)} deduplicated")
+    return deduped
 
 
 class MultiSourceRetriever(BaseRetriever):

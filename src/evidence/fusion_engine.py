@@ -3,7 +3,20 @@ from collections import defaultdict
 from src.core.logger import get_logger
 from src.facts.models import Fact, FactType, SourceReference
 from src.facts.store import FactStore
-from src.resource_intelligence.resource_metadata_store import ResourceMetadataStore
+from dataclasses import dataclass, field
+from typing import List as _List
+
+
+@dataclass
+class ResourceMetadataStore:
+    resource_id: str = ""
+    file_name: str = ""
+    file_path: str = ""
+    resource_type: str = ""
+    metadata: dict = field(default_factory=dict)
+
+    def get_summary(self) -> dict:
+        return {"resource_id": self.resource_id, "file_name": self.file_name}
 
 logger = get_logger(__name__)
 

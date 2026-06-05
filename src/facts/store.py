@@ -185,6 +185,33 @@ class FactStore:
         logger.info(f"Loaded {count} facts from {path}")
         return count
 
+    def get_coverage(self, section_types: List[str],
+                      type_map: Dict[str, List[FactType]]) -> Dict[str, float]:
+        result = {}
+        for stype in section_types:
+            required = type_map.get(stype, [])
+            if not required:
+                result[stype] = 0.0
+                continue
+            matched = 0
+            for rt in required:
+                if self._type_index.get(rt, set()):
+                    matched += 1
+            result[stype] = min(1.0, matched / len(required))
+        return result
+
+    def get_verified_facts(self, min_confidence: float = 0.0) -> List[Fact]:
+        return [
+            f for f in self._facts.values()
+            if f.is_active and f.is_verified and f.confidence >= min_confidence
+        ]
+
+    def get_user_facts(self) -> List[Fact]:
+        return [
+            f for f in self._facts.values()
+            if f.source_tier == 1
+        ]
+
     def _dict_to_fact(self, data: Dict) -> Optional[Fact]:
         try:
             ft = FactType(data["fact_type"])
@@ -198,6 +225,12 @@ class FactStore:
                 source=src,
                 concepts=data.get("concepts", []),
                 related_fact_ids=data.get("related_fact_ids", []),
+                metadata=data.get("metadata", {}),
+                source_tier=data.get("source_tier", 1),
+                source_url=data.get("source_url", ""),
+                retrieval_timestamp=data.get("retrieval_timestamp", ""),
+                verification_count=data.get("verification_count", 0),
+                is_verified=data.get("is_verified", True),
             )
         except (KeyError, ValueError) as e:
             logger.warning(f"Failed to reconstruct fact: {e}")

@@ -1,23 +1,17 @@
-from .coverage_models import (
-    SectionCoverage, ParagraphCoverage, EvidenceCoverageReport,
-    CoverageLevel, GenerationMode,
-)
 from .coverage_engine import CoverageEngine
-from .coverage_validator import CoverageValidator
-from .traceability import TraceabilityBuilder, ParagraphEvidenceMap, ReportTraceabilityMap
+from .coverage_models import CoverageLevel, GenerationMode, SectionCoverage, EvidenceCoverageReport
 from .fusion_engine import EvidenceFusionEngine, FusionResult
-from .dashboard import EvidenceDashboard
-from .report_explainability import ReportExplainer
-from .orchestrator import EvidenceOrchestrator, EvidencePipelineResult
+from .traceability import TraceabilityBuilder, ReportTraceabilityMap
+from .external_acquisition import (
+    ExternalAcquisitionPipeline, SourceTier, ExternalFact,
+    FactVotingSystem, EvidenceConfidenceScorer, VerifiedFact,
+)
 
 __all__ = [
-    "SectionCoverage", "ParagraphCoverage", "EvidenceCoverageReport",
-    "CoverageLevel", "GenerationMode",
-    "CoverageEngine",
-    "CoverageValidator",
-    "TraceabilityBuilder", "ParagraphEvidenceMap", "ReportTraceabilityMap",
+    "CoverageEngine", "CoverageLevel", "GenerationMode",
+    "SectionCoverage", "EvidenceCoverageReport",
     "EvidenceFusionEngine", "FusionResult",
-    "EvidenceDashboard",
-    "ReportExplainer",
-    "EvidenceOrchestrator", "EvidencePipelineResult",
+    "TraceabilityBuilder", "ReportTraceabilityMap",
+    "ExternalAcquisitionPipeline", "SourceTier", "ExternalFact",
+    "FactVotingSystem", "EvidenceConfidenceScorer", "VerifiedFact",
 ]
