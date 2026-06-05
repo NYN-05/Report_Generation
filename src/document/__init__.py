@@ -12,12 +12,8 @@ from .styles.analyzer import StyleAnalyzer
 from .styles.extractor import StyleExtractor
 from .styles.manager import StyleManager
 from .template.loader import TemplateLoader
-from .template.analyzer import TemplateAnalyzer
-from .template.placeholder import PlaceholderHandler
-from .content.manager import ContentManager
 from .formatter.font import FontFormatter
 from .formatter.paragraph import ParagraphFormatter
-from .formatter.table import TableFormatter
 from .structure import (
     build_tree, DocumentNode, SectionNode, ParagraphNode, NodeType,
     SectionLocator,
@@ -44,12 +40,8 @@ __all__ = [
     "StyleExtractor",
     "StyleManager",
     "TemplateLoader",
-    "TemplateAnalyzer",
-    "PlaceholderHandler",
-    "ContentManager",
     "FontFormatter",
     "ParagraphFormatter",
-    "TableFormatter",
     "build_tree", "DocumentNode", "SectionNode", "ParagraphNode", "NodeType",
     "SectionLocator",
     "ReplaceSection", "InsertSection", "ExpandSection", "DeleteSection", "MoveSection",

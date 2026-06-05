@@ -347,6 +347,93 @@ def show_status():
     print("\n" + "=" * 60)
 
 
+def run_evidence_centric(topic: str, output_path: str = "output/output.docx",
+                         formats: Optional[list] = None,
+                         knowledge_dir: Optional[str] = None,
+                         web_search: bool = False):
+    """Run the evidence-centric pipeline using EvidenceOrchestrator + CoordinatedPipeline."""
+    logger.info(f"Evidence-centric pipeline for: {topic}")
+    from src.pipeline import CoordinatedPipeline
+    from src.evidence import EvidenceOrchestrator
+    from src.generator.knowledge_driven_generator import KnowledgeDrivenReportGenerator
+    from src.memory import MemoryHub
+    from src.providers.factory import get_default_provider
+
+    provider = get_default_provider() if not web_search else None
+    orchestrator = EvidenceOrchestrator()
+
+    context_assembler = None
+    local_chunks = []
+    try:
+        from src.retrieval.context import ContextAssembler
+        from src.retrieval.base import HybridRetriever
+        from src.ingestion.pipeline import IngestionPipeline
+        import os
+        project_root = Path(__file__).resolve().parent.parent
+        kd = knowledge_dir or str(project_root / "knowledge")
+        kd = _resolve_safe_path(kd)
+        if kd and os.path.isdir(kd):
+            ingest = IngestionPipeline()
+            ingest.ingest_directory(kd)
+            local_chunks = ingest.get_chunks()
+            if local_chunks:
+                retriever = HybridRetriever(
+                    vector_store=ingest.store if ingest.store.is_available() else None
+                )
+                retriever.index_chunks(local_chunks)
+                context_assembler = ContextAssembler(retriever=retriever)
+                context_assembler.index_knowledge(local_chunks)
+    except Exception as e:
+        logger.warning(f"Context assembler init skipped: {e}")
+
+    knowledge_generator = KnowledgeDrivenReportGenerator(
+        provider=provider,
+        context_assembler=context_assembler,
+    )
+
+    evidence_phases = [
+        "resource_intel", "fact_extraction", "evidence_graph",
+        "evidence_blueprint", "coverage_analysis", "generation_constraints",
+        "evidence_generation", "hallucination_check", "traceability",
+        "quality_gate", "assemble_doc", "export",
+    ]
+
+    pipe = CoordinatedPipeline()
+    result = pipe.execute(
+        {"topic": topic, "output_path": output_path, "formats": formats or ["docx"]},
+        phases=evidence_phases,
+        callback=lambda phase, status: print(f"  [{status}] {phase}"),
+        components={
+            "evidence_orchestrator": orchestrator,
+            "fact_store": orchestrator.fact_store,
+            "coverage_engine": orchestrator.coverage_engine,
+            "knowledge_generator": knowledge_generator,
+            "memory_hub": MemoryHub(),
+            "context_assembler": context_assembler,
+        },
+    )
+
+    if result.success:
+        print(f"\n[OK] Evidence-centric pipeline complete in {result.execution_time:.2f}s")
+        print(f"     Output: {result.output_path}")
+        phases_done = result.data.get("phases_completed", [])
+        print(f"     Phases: {', '.join(phases_done)}")
+        stats = orchestrator.get_statistics()
+        print(f"     Facts: {stats['fact_store'].get('total', 0)} | "
+              f"Graph: {stats['knowledge_graph'].get('node_count', 0)} nodes")
+        try:
+            dashboard = orchestrator.get_dashboard_data()
+            cov = dashboard.get("coverage", {})
+            if cov and cov != {"status": "no_report"}:
+                print(f"     Coverage: {cov.get('overall_coverage', 'N/A')} | "
+                      f"Trust: {cov.get('overall_confidence', 'N/A')}")
+        except Exception:
+            pass
+    else:
+        print(f"\n[ERROR] {result.error}")
+    return result.success
+
+
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
@@ -409,6 +496,13 @@ def main():
     )
 
     parser.add_argument(
+        '--evidence-centric',
+        action='store_true',
+        help='Use evidence-centric pipeline: resource_intel -> fact_extraction -> '
+             'evidence_graph -> blueprint -> coverage -> constrained generation'
+    )
+
+    parser.add_argument(
         '--phases',
         metavar='PHASES',
         help='Comma-separated phases for CoordinatedPipeline: '
@@ -461,7 +555,15 @@ def main():
         return
     
     if args.topic:
-        if args.coordinated:
+        if args.evidence_centric:
+            run_evidence_centric(
+                topic=args.topic,
+                output_path=args.output,
+                formats=args.format.split(","),
+                knowledge_dir=args.knowledge_dir,
+                web_search=args.web_search,
+            )
+        elif args.coordinated:
             run_coordinated(
                 topic=args.topic,
                 output_path=args.output,

@@ -2,7 +2,7 @@ from typing import Dict, List, Optional, Tuple, Set
 from collections import defaultdict
 import re
 from src.core.logger import get_logger
-from .knowledge_graph import KnowledgeGraph
+from .knowledge_graph import ProjectKnowledgeGraph as KnowledgeGraph
 
 logger = get_logger(__name__)
 

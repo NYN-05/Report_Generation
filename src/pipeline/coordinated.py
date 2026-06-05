@@ -4,10 +4,11 @@ Coordinated Pipeline
 End-to-end pipeline wiring AgentCoordinator, ReportGenerator,
 ContextAssembler, MemoryHub, ReviewPipeline, and ExportAgent.
 
-Flow:
-  1. Plan blueprint → 2. Index knowledge (RAG) → 3. Research phase
-  4. Report generation (hierarchical) → 5. Review & citation validation
-  6. Formatting → 7. Export DOCX/PDF
+Evidence-Centric Flow:
+  1. resource_intel → 2. fact_extraction → 3. evidence_graph
+  4. evidence_blueprint → 5. coverage_analysis → 6. generation_constraints
+  7. evidence_generation → 8. hallucination_check → 9. review
+  10. traceability → 11. quality_gate → 12. assemble_doc → 13. export
 """
 
 import asyncio
@@ -26,7 +27,12 @@ from src.core.errors import RecoverableError, PhaseError
 logger = get_logger(__name__)
 
 
-PHASE_ORDER = ["plan", "research", "knowledge", "generate", "review", "validate", "refine", "assemble_doc", "quality_gate", "export"]
+PHASE_ORDER = [
+    "resource_intel", "fact_extraction", "evidence_graph",
+    "evidence_blueprint", "coverage_analysis", "generation_constraints",
+    "evidence_generation", "hallucination_check", "review",
+    "traceability", "quality_gate", "assemble_doc", "export",
+]
 
 ALL_PHASES = set(PHASE_ORDER)
 
@@ -59,6 +65,19 @@ class PipelineContext:
     metadata: Dict[str, Any] = field(default_factory=dict)
     errors: List[str] = field(default_factory=list)
     event_bus: Optional[EventBus] = None
+
+    evidence_orchestrator: Optional[Any] = None
+    fact_store: Optional[Any] = None
+    coverage_engine: Optional[Any] = None
+    generation_constraints: Optional[Any] = None
+    evidence_blueprint: Optional[Any] = None
+    traceability_map: Optional[Any] = None
+    hallucination_detector: Optional[Any] = None
+    fusion_engine: Optional[Any] = None
+    resource_analyses: Dict[str, Any] = field(default_factory=dict)
+    evidence_prompt_map: Dict[str, str] = field(default_factory=dict)
+    coverage_report: Optional[Any] = None
+    evidence_quality_report: Optional[Any] = None
 
 
 ProgressCallback = Callable[[str, str], None]
@@ -167,6 +186,12 @@ class CoordinatedPipeline(BasePipeline):
         ctx.example_library = comp.get("example_library")
         ctx.retrieval_cache = comp.get("retrieval_cache")
         ctx.context_cache = comp.get("context_cache")
+
+        ctx.evidence_orchestrator = comp.get("evidence_orchestrator")
+        ctx.fact_store = comp.get("fact_store")
+        ctx.coverage_engine = comp.get("coverage_engine")
+        ctx.fusion_engine = comp.get("fusion_engine")
+        ctx.hallucination_detector = comp.get("hallucination_detector")
         if kwargs.get("callback") and ctx.event_bus:
             import functools
             cb = kwargs["callback"]
@@ -188,6 +213,15 @@ class CoordinatedPipeline(BasePipeline):
             "assemble_doc": self._run_assemble_doc,
             "quality_gate": self._run_quality_gate,
             "export": self._run_export,
+            "resource_intel": self._run_resource_intel,
+            "fact_extraction": self._run_fact_extraction,
+            "evidence_graph": self._run_evidence_graph,
+            "evidence_blueprint": self._run_evidence_blueprint,
+            "coverage_analysis": self._run_coverage_analysis,
+            "generation_constraints": self._run_generation_constraints,
+            "evidence_generation": self._run_evidence_generation,
+            "hallucination_check": self._run_hallucination_check,
+            "traceability": self._run_traceability,
         }
         if allowed:
             allowed_set = set(allowed)
@@ -293,6 +327,302 @@ class CoordinatedPipeline(BasePipeline):
             return True
 
         raise RecoverableError("generate", "No generator or coordinator available")
+
+    # ------------------------------------------------------------------ #
+    #  Evidence-centric phases
+    # ------------------------------------------------------------------ #
+
+    def _ensure_orchestrator(self, ctx: PipelineContext):
+        if ctx.evidence_orchestrator is None:
+            from src.evidence.orchestrator import EvidenceOrchestrator
+            ctx.evidence_orchestrator = EvidenceOrchestrator()
+            ctx.fact_store = ctx.evidence_orchestrator.fact_store
+            ctx.coverage_engine = ctx.evidence_orchestrator.coverage_engine
+            ctx.fusion_engine = ctx.evidence_orchestrator.fusion_engine
+
+    def _run_resource_intel(self, ctx: PipelineContext) -> bool:
+        self._ensure_orchestrator(ctx)
+        knowledge_chunks = ctx.metadata.get("retrieved_chunks", [])
+        if not knowledge_chunks and ctx.context_assembler and ctx.context_assembler.is_ready():
+            try:
+                result = ctx.context_assembler.retrieve_context(ctx.topic, top_k=50)
+                knowledge_chunks = result.get("chunks", [])
+            except Exception as e:
+                self.logger.warning(f"Context retrieval failed: {e}")
+        if knowledge_chunks:
+            ingest_result = ctx.evidence_orchestrator.ingest_chunks(knowledge_chunks)
+            ctx.metadata["resource_intel"] = ingest_result
+            self.logger.info(
+                f"Resource intelligence: {ingest_result['total_facts']} facts from "
+                f"{ingest_result['chunks_processed']} chunks"
+            )
+        else:
+            self.logger.info("No knowledge chunks available for resource intelligence")
+        return True
+
+    def _run_fact_extraction(self, ctx: PipelineContext) -> bool:
+        self._ensure_orchestrator(ctx)
+        store_stats = ctx.fact_store.get_statistics()
+        ctx.metadata["fact_extraction"] = {
+            "total_facts": store_stats.get("total", 0),
+            "by_type": store_stats.get("by_type", {}),
+        }
+        self.logger.info(
+            f"Fact extraction: {store_stats.get('total', 0)} facts in store, "
+            f"types: {len(store_stats.get('by_type', {}))}"
+        )
+        return True
+
+    def _run_evidence_graph(self, ctx: PipelineContext) -> bool:
+        self._ensure_orchestrator(ctx)
+        result = ctx.evidence_orchestrator.build_graph()
+        ctx.metadata["evidence_graph"] = result
+        kg = ctx.evidence_orchestrator.knowledge_graph.to_dict()
+        self.logger.info(
+            f"Evidence graph: {result['nodes']} nodes, {result['edges']} edges, "
+            f"{result['fusion_results']} fusion results"
+        )
+        return True
+
+    def _run_evidence_blueprint(self, ctx: PipelineContext) -> bool:
+        self._ensure_orchestrator(ctx)
+        blueprint = ctx.evidence_orchestrator.generate_blueprint(ctx.topic)
+        ctx.evidence_blueprint = blueprint
+        ctx.metadata["evidence_blueprint"] = blueprint.to_dict()
+        self.logger.info(
+            f"Evidence blueprint: {len(blueprint.sections)} sections, "
+            f"richness={blueprint.evidence_richness:.2%}, "
+            f"structure={blueprint.recommended_structure}"
+        )
+        return True
+
+    def _run_coverage_analysis(self, ctx: PipelineContext) -> bool:
+        self._ensure_orchestrator(ctx)
+        blueprint = ctx.evidence_blueprint
+        if not blueprint:
+            self.logger.warning("No blueprint for coverage analysis")
+            return True
+        all_facts = ctx.fact_store.get_all_facts()
+        facts_by_section: Dict = {}
+        sections_data: Dict = {}
+        for section in blueprint.sections:
+            from src.facts.models import FactType
+            required_types = []
+            for ft_name in section.required_fact_types:
+                try:
+                    required_types.append(FactType(ft_name))
+                except ValueError:
+                    pass
+            section_facts = [f for f in all_facts if f.fact_type in required_types]
+            facts_by_section[section.section_type] = section_facts
+            sections_data[section.section_type] = {
+                "heading": section.heading,
+                "paragraphs": [],
+            }
+        report = ctx.coverage_engine.build_report(sections_data, facts_by_section)
+        ctx.coverage_report = report
+        ctx.metadata["coverage_report"] = report.to_dict()
+
+        low = report.sections_below_threshold
+        total = len(report.sections)
+        self.logger.info(
+            f"Coverage analysis: {report.overall_coverage:.1%} overall, "
+            f"{low}/{total} sections below threshold, "
+            f"mode={report.generation_mode.value}"
+        )
+        return True
+
+    def _run_generation_constraints(self, ctx: PipelineContext) -> bool:
+        self._ensure_orchestrator(ctx)
+        blueprint = ctx.evidence_blueprint
+        if not blueprint:
+            self.logger.warning("No blueprint for constraints")
+            return True
+        constraints = ctx.evidence_orchestrator.build_generation_constraints(blueprint)
+        ctx.generation_constraints = constraints
+        ctx.metadata["generation_constraints"] = {
+            k: v.to_dict() for k, v in constraints.items()
+        }
+        prompt_map = ctx.evidence_orchestrator.get_generation_prompts(constraints)
+        ctx.evidence_prompt_map = prompt_map
+        modes = {k: v.generation_mode.value for k, v in constraints.items()}
+        self.logger.info(
+            f"Generation constraints: {len(constraints)} sections, "
+            f"modes: {modes}"
+        )
+        return True
+
+    def _run_evidence_generation(self, ctx: PipelineContext) -> bool:
+        self._ensure_orchestrator(ctx)
+        from src.generator.knowledge_driven_generator import KnowledgeDrivenReportGenerator
+
+        blueprint = ctx.evidence_blueprint
+        constraints = ctx.generation_constraints
+        if not blueprint or not constraints:
+            self.logger.warning("No blueprint/constraints for evidence generation")
+            return self._run_generate(ctx)
+
+        llm_available = False
+        try:
+            if ctx.knowledge_driven_generator and hasattr(ctx.knowledge_driven_generator, '_provider'):
+                llm_available = ctx.knowledge_driven_generator._provider is not None
+            elif ctx.report_generator and hasattr(ctx.report_generator, '_provider'):
+                llm_available = ctx.report_generator._provider is not None
+        except Exception:
+            llm_available = False
+
+        from src.generator.content_blocks import SectionContent, ParagraphBlock, SourceRequiredBlock
+        section_contents = []
+        results = []
+        has_llm = llm_available
+
+        all_facts = ctx.fact_store.get_all_facts()
+        section_types = [s.section_type for s in blueprint.sections
+                        if s.section_type in constraints]
+
+        for stype in section_types:
+            constraint = constraints.get(stype)
+            heading = stype.replace("_", " ").title()
+            if not constraint:
+                section = SectionContent(heading=heading)
+                section.add_block(ParagraphBlock(
+                    text=f"[No evidence constraints defined for {stype}]"
+                ))
+                section_contents.append(section)
+                continue
+
+            section_facts = [f for f in all_facts if f.fact_id in constraint.allowed_fact_ids]
+
+            if constraint.generation_mode.value == "not_possible" or not has_llm:
+                section = SectionContent(heading=heading)
+                if not section_facts:
+                    section.add_block(SourceRequiredBlock(
+                        query=stype,
+                        message="Insufficient source material available for this section."
+                    ))
+                else:
+                    for fact in section_facts:
+                        text = getattr(fact, 'content', None) or getattr(fact, 'description', None) or str(fact)
+                        section.add_block(ParagraphBlock(text=text))
+                    if constraint.generation_mode.value in ("insufficient_evidence", "cautious"):
+                        section.add_block(SourceRequiredBlock(
+                            query=stype,
+                            message="[Additional source material recommended for this section]"
+                        ))
+                section_contents.append(section)
+                results.append({
+                    "section_type": stype, "heading": section.heading,
+                    "blocks": len(section.blocks), "total_words": section.total_words,
+                })
+                continue
+
+            # LLM available — generate with evidence
+            gen = ctx.knowledge_driven_generator
+            if not gen:
+                gen = KnowledgeDrivenReportGenerator(
+                    provider=ctx.report_generator._provider if ctx.report_generator else None,
+                    context_assembler=ctx.context_assembler,
+                )
+
+            prompt = ctx.evidence_prompt_map.get(stype, "")
+            section, metadata = gen.generate_section(
+                section_type=stype,
+                topic=ctx.topic,
+                retrieval_query=f"{ctx.topic} {stype.replace('_', ' ')}",
+            )
+
+            validation = ctx.evidence_orchestrator.validate_generated_content(
+                {stype: section.to_text()}
+            ).get(stype, {})
+            if validation.get("issues"):
+                self.logger.warning(
+                    f"Evidence validation issues for {stype}: "
+                    f"{validation['issues'][:3]}"
+                )
+                if constraint.generation_mode.value in ("insufficient_evidence", "cautious"):
+                    section.add_block(SourceRequiredBlock(
+                        query=stype,
+                        message="[Additional source material recommended for this section]"
+                    ))
+
+            section_contents.append(section)
+            results.append({
+                "section_type": stype, "heading": section.heading,
+                "blocks": len(section.blocks), "total_words": section.total_words,
+            })
+
+        ctx.metadata["report"] = {
+            "title": ctx.topic,
+            "section_contents": section_contents,
+            "section_count": len(section_contents),
+            "total_words": sum(s.total_words for s in section_contents),
+            "chapters": [{
+                "heading": s.heading,
+                "content": s.to_text(),
+            } for s in section_contents],
+            "results": results,
+        }
+        self.logger.info(
+            f"Evidence generation: {len(section_contents)} sections, "
+            f"{sum(s.total_words for s in section_contents)} words"
+        )
+        return True
+
+    def _run_hallucination_check(self, ctx: PipelineContext) -> bool:
+        self._ensure_orchestrator(ctx)
+        from src.validation.hallucination_detector import HallucinationDetector
+
+        report = ctx.metadata.get("report", {})
+        sections_text = {}
+        for chapter in report.get("chapters", []):
+            sections_text[chapter.get("heading", "unknown")] = chapter.get("content", "")
+
+        if not sections_text:
+            self.logger.info("No sections for hallucination check")
+            return True
+
+        detector = ctx.hallucination_detector or HallucinationDetector(ctx.fact_store)
+        result = detector.check_report(ctx.fact_store, sections_text)
+        ctx.metadata["hallucination_check"] = result
+
+        if result["hallucination_free"]:
+            self.logger.info("Hallucination check: PASSED - no issues found")
+        else:
+            self.logger.warning(
+                f"Hallucination check: {result['total_issues']} issues found "
+                f"({result['unsupported_claims']} unsupported claims)"
+            )
+            for issue in result.get("issues", [])[:5]:
+                ctx.errors.append(f"hallucination.{issue['issue_type']}: {issue['message']}")
+        return True
+
+    def _run_traceability(self, ctx: PipelineContext) -> bool:
+        self._ensure_orchestrator(ctx)
+        report = ctx.metadata.get("report", {})
+        sections_paras: Dict[str, List[Dict]] = {}
+        for chapter in report.get("chapters", []):
+            heading = chapter.get("heading", "unknown")
+            content = chapter.get("content", "")
+            paras = [{"paragraph_id": f"{heading}_p{i}", "text": p.strip()}
+                    for i, p in enumerate(content.split("\n\n")) if p.strip()]
+            sections_paras[heading] = paras
+
+        if not sections_paras:
+            self.logger.info("No sections for traceability")
+            return True
+
+        trace_map = ctx.evidence_orchestrator.build_traceability_map(
+            f"report_{ctx.topic[:20]}", sections_paras
+        )
+        ctx.traceability_map = trace_map
+        ctx.metadata["traceability"] = trace_map.to_dict()
+
+        self.logger.info(
+            f"Traceability: {trace_map.traced_paragraphs}/"
+            f"{trace_map.total_paragraphs} paragraphs traced "
+            f"(score={trace_map.overall_traceability:.1%})"
+        )
+        return True
 
     def _run_review(self, ctx: PipelineContext) -> bool:
         pipeline = ctx.review_pipeline

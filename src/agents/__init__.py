@@ -10,10 +10,10 @@ from .planner import PlannerAgent
 from .editor import EditorAgent
 from .research import ResearchAgent
 from .writing import WritingAgent
-from .citation import CitationAgent
-from .formatting_agent import FormattingAgent
 from .export_agent import ExportAgent
 from .coordinator import AgentCoordinator
+from .formatting_agent import FormattingAgent
+from .citation import CitationAgent
 
 __all__ = [
     "BaseAgent",
@@ -23,8 +23,8 @@ __all__ = [
     "EditorAgent",
     "ResearchAgent",
     "WritingAgent",
-    "CitationAgent",
-    "FormattingAgent",
     "ExportAgent",
     "AgentCoordinator",
+    "FormattingAgent",
+    "CitationAgent",
 ]

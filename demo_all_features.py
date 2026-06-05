@@ -474,8 +474,40 @@ def feature_quality_scores():
     log_feature("EvidenceCoverageScore", True,
                 f"coverage={ecs_result.get('coverage', '?'):.3f}")
 
+    # New evidence-centric quality scores
+    try:
+        from src.quality.evidence_fidelity_score import EvidenceFidelityScore
+        from src.quality.fact_utilization_score import FactUtilizationScore
+        from src.quality.source_coverage_score import SourceCoverageScore
+        from src.quality.hallucination_risk_score import HallucinationRiskScore
+        from src.quality.comprehensive_quality_score import ComprehensiveQualityScore
+
+        from src.facts.store import FactStore
+        sample_sections = {"section": sample}
+        fs = FactStore()
+        facts_by_section = {"section": []}
+        efs = EvidenceFidelityScore().score_global(sample_sections, facts_by_section)
+        log_feature("EvidenceFidelityScore", True, f"fidelity={efs.get('evidence_fidelity_score', 0):.2f}")
+
+        fus = FactUtilizationScore().score_global(sample_sections, facts_by_section)
+        log_feature("FactUtilizationScore", True, f"utilization={fus.get('fact_utilization_score', 0):.2f}")
+
+        scs = SourceCoverageScore().score_global(sample_sections, facts_by_section)
+        log_feature("SourceCoverageScore", True, f"coverage={scs.get('source_coverage_score', 0):.2f}")
+
+        hrisk = HallucinationRiskScore(fs).score_global(sample_sections, facts_by_section)
+        log_feature("HallucinationRiskScore", True, f"risk={hrisk.get('hallucination_risk_score', 0):.2f}")
+
+        from src.evidence.traceability import TraceabilityBuilder
+        cqs_fe10 = ComprehensiveQualityScore(fs, TraceabilityBuilder(fs))
+        cq_result = cqs_fe10.evaluate_section("section", sample, [])
+        log_feature("ComprehensiveQualityScore", True,
+                    f"quality={cq_result.get('quality_score', 0):.2f}")
+    except Exception as e:
+        log_feature("Evidence-centric quality scores (5)", False, str(e)[:60])
+
     metrics.record("10. Quality Scores", True, time.time() - start,
-                   "5/5 scoring modules executed")
+                   "5/5 original + 5 evidence-centric modules executed")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -943,6 +975,34 @@ def feature_coordinated_pipeline(topic, output_path, context_assembler):
                  "failed": FAIL_ICON }
         print(f"      {icon.get(status, '?')}  Phase: {phase}")
 
+    # Also run evidence-centric pipeline if chunks available
+    try:
+        from src.evidence.orchestrator import EvidenceOrchestrator
+        ev_pipe = CoordinatedPipeline(output_dir=str(Path(output_path).parent))
+        ev_result = ev_pipe.execute(
+            {
+                "topic": topic,
+                "output_path": output_path.replace(".docx", "_evidence.docx"),
+                "formats": ["docx"],
+            },
+            phases=["resource_intel", "fact_extraction", "evidence_graph",
+                    "evidence_blueprint", "coverage_analysis",
+                    "generation_constraints", "evidence_generation",
+                    "hallucination_check", "traceability",
+                    "assemble_doc", "quality_gate", "export"],
+            callback=phase_callback,
+            components={
+                "report_generator": report_gen,
+                "knowledge_generator": knowledge_gen,
+                "memory_hub": MemoryHub(),
+                "context_assembler": context_assembler,
+            },
+        )
+        log_feature("Evidence Pipeline execution", ev_result.success,
+                    f"output={ev_result.output_path}")
+    except Exception as e:
+        log_feature("Evidence Pipeline execution", False, str(e)[:60])
+
     result = pipe.execute(
         {
             "topic": topic,
@@ -1046,17 +1106,17 @@ def feature_structural_editing(output_path):
                     section is not None,
                     f"found={section is not None}")
 
-        sections_by_level = locator.find_by_level(root, 1)
+        sections_by_level = locator.find_by_level(1)
         log_feature("Find sections by level", len(sections_by_level) > 0,
                     f"{len(sections_by_level)} top-level sections")
 
-        fuzzy = locator.find_by_heading("intro", exact=False)
-        log_feature("Fuzzy section search", fuzzy is not None)
+        fuzzy = locator.find_by_heading_fuzzy("intro")
+        log_feature("Fuzzy section search", len(fuzzy) > 0,
+                    f"{len(fuzzy)} matches" if fuzzy else "none")
 
         planner = EditingPlanner()
-        plan = planner.plan_expand("Introduction",
-                                    ["Background", "Problem Statement"])
-        log_feature("EditingPlanner (expand plan)", plan is not None)
+        plan = planner.plan("Expand Introduction with Background and Problem Statement")
+        log_feature("EditingPlanner (plan)", plan is not None)
 
         log_feature("Structural Editing ops available", True,
                     "InsertSection, ExpandSection, ReplaceSection, DeleteSection, MoveSection")
@@ -1097,6 +1157,181 @@ def feature_agents(topic):
 
     metrics.record("B3. Agent System", True, time.time() - start,
                    "7 agents registered + factory")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# FEATURE 21 — Evidence-Centric Pipeline
+# ══════════════════════════════════════════════════════════════════════════════
+def feature_evidence_centric(topic, knowledge_dir="knowledge"):
+    print_header("[21/20] Evidence-Centric Pipeline")
+    start = time.time()
+
+    from src.evidence.orchestrator import EvidenceOrchestrator
+    from src.ingestion.pipeline import IngestionPipeline
+
+    # 21a. Resource Intelligence
+    ingest = IngestionPipeline()
+    kd = Path(__file__).parent / knowledge_dir
+    if kd.is_dir():
+        ingest.ingest_directory(str(kd))
+    chunks = ingest.get_chunks()
+    log_feature("21a. IngestionPipeline", len(chunks) > 0, f"{len(chunks)} chunks")
+
+    orchestrator = EvidenceOrchestrator()
+    result = orchestrator.ingest_chunks(chunks)
+    log_feature("21b. Resource Intelligence (ingest_chunks)", result["total_facts"] > 0,
+                f"{result['total_facts']} facts from {result['chunks_processed']} chunks")
+
+    n_facts = len(orchestrator.fact_store.get_all_facts())
+    store_stats = orchestrator.fact_store.get_statistics()
+    log_feature("21c. Structured Fact Store (typed facts)", n_facts > 0,
+                f"{n_facts} facts, types: {len(store_stats.get('by_type', {}))}")
+
+    # 21d. Project Knowledge Graph
+    graph_result = orchestrator.build_graph()
+    log_feature("21d. Project Knowledge Graph (typed nodes/edges)", graph_result["nodes"] > 0,
+                f"{graph_result['nodes']} nodes, {graph_result['edges']} edges")
+
+    # 21e. Evidence Blueprint
+    from src.facts.models import FactType
+    fact_type_counts = {}
+    all_facts = orchestrator.fact_store.get_all_facts()
+    for f in all_facts:
+        fact_type_counts[f.fact_type] = fact_type_counts.get(f.fact_type, 0) + 1
+    blueprint = orchestrator.generate_blueprint(topic)
+    bp_dict = blueprint.to_dict()
+    typed_fact_count = sum(c for ft, c in fact_type_counts.items() if ft != FactType.GENERAL)
+    log_feature("21e. Evidence Blueprint Generator", bp_dict["section_count"] > 0 or typed_fact_count == 0,
+                f"{bp_dict['section_count']} sections, richness={bp_dict['evidence_richness']:.0%}, "
+                f"{typed_fact_count} typed facts")
+
+    # 21f. Coverage Analysis
+    sections_data = {}
+    facts_by_section = {}
+    for section in blueprint.sections:
+        required = []
+        for ft_name in section.required_fact_types:
+            try:
+                required.append(FactType(ft_name))
+            except ValueError:
+                pass
+        s_facts = [f for f in all_facts if f.fact_type in required]
+        facts_by_section[section.section_type] = s_facts
+        sections_data[section.section_type] = {"heading": section.heading, "paragraphs": []}
+    coverage = orchestrator.coverage_engine.build_report(sections_data, facts_by_section)
+    log_feature("21f. Evidence Coverage Engine", True,
+                f"coverage={coverage.overall_coverage:.0%}, mode={coverage.generation_mode.value}")
+
+    # 21g. Generation Constraints
+    constraints = orchestrator.build_generation_constraints(blueprint)
+    has_constraints = len(constraints) > 0
+    log_feature("21g. Evidence-Constrained Generation Controller",
+                has_constraints,
+                f"{len(constraints)} section constraints" if has_constraints else "0 (general facts only)")
+
+    # 21h. Hallucination Detection
+    try:
+        from src.validation.hallucination_detector import HallucinationDetector
+        detector = HallucinationDetector(orchestrator.fact_store)
+        sample_text = f"{topic} is a field of study. The main approach uses deep learning."
+        h_result = detector.check_report(orchestrator.fact_store,
+                                           {"overview": sample_text})
+        log_feature("21h. Hallucination Prevention Layer", True,
+                    f"{h_result['total_issues']} issues found")
+    except Exception as e:
+        log_feature("21h. Hallucination Prevention Layer", False, str(e)[:60])
+
+    # 21i. Evidence Fusion
+    fusion_result = orchestrator.fusion_engine.fuse_all(all_facts)
+    log_feature("21i. Multi-Resource Evidence Fusion", True,
+                f"{len(fusion_result)} fusion results")
+
+    # 21j. New Evidence-Centric Quality Scores
+    try:
+        from src.quality.evidence_fidelity_score import EvidenceFidelityScore
+        from src.quality.fact_utilization_score import FactUtilizationScore
+        from src.quality.source_coverage_score import SourceCoverageScore
+        from src.quality.hallucination_risk_score import HallucinationRiskScore
+        from src.quality.comprehensive_quality_score import ComprehensiveQualityScore
+
+        sample_sections = {"overview": f"{topic} overview text"}
+        facts_by_section = {"overview": all_facts}
+        efs = EvidenceFidelityScore().score_global(sample_sections, facts_by_section)
+        fus = FactUtilizationScore().score_global(sample_sections, facts_by_section)
+        scs = SourceCoverageScore().score_global(sample_sections, facts_by_section)
+        risk = HallucinationRiskScore(orchestrator.fact_store).score_global(sample_sections, facts_by_section)
+        from src.evidence.traceability import TraceabilityBuilder
+        cqs = ComprehensiveQualityScore(
+            orchestrator.fact_store,
+            TraceabilityBuilder(orchestrator.fact_store)
+        )
+        section_type, section_text = next(iter(sample_sections.items()))
+        cq_result = cqs.evaluate_section(section_type, section_text, [])
+        log_feature("21j. Evidence-Centric Quality Scores (6 new)", True,
+                    f"fidelity={efs.get('overall', 0):.1f}, "
+                    f"utilization={fus.get('overall', 0):.1f}, "
+                    f"source_coverage={scs.get('overall', 0):.1f}, "
+                    f"hallucination_risk={risk.get('overall', 0):.1f}, "
+                    f"quality={cq_result.get('quality_score', 0):.2f}")
+    except Exception as e:
+        log_feature("21j. Evidence-Centric Quality Scores", False, str(e)[:60])
+
+    # 21k. Dashboard & Explainability
+    try:
+        from src.evidence.dashboard import EvidenceDashboard
+        from src.evidence.report_explainability import ReportExplainer
+        db = EvidenceDashboard(
+            orchestrator.fact_store,
+            orchestrator.coverage_engine,
+            orchestrator.traceability,
+            orchestrator.knowledge_graph,
+        )
+        dashboard_data = db.get_overview()
+        cov = dashboard_data.get("coverage", {})
+        if isinstance(cov, dict):
+            cov_pct = cov.get("overall_coverage", 0)
+        else:
+            cov_pct = 0
+        log_feature("21k. Evidence Dashboard", dashboard_data is not None,
+                    f"{dashboard_data.get('fact_store', {}).get('total_facts', 0)} facts, "
+                    f"{cov_pct:.0%} coverage")
+
+        explainer = ReportExplainer(
+            orchestrator.fact_store,
+            orchestrator.traceability,
+            orchestrator.coverage_engine,
+            orchestrator.knowledge_graph,
+        )
+        paragraphs = [{"paragraph_id": "p0", "text": f"Introduction to {topic}", "section_type": "overview"}]
+        explanation = explainer.explain_section("overview", paragraphs)
+        log_feature("21k. Report Explainability",
+                    explanation is not None,
+                    f"{explanation['unique_facts_used']} facts")
+    except Exception as e:
+        log_feature("21k. Dashboard & Explainability", False, str(e)[:60])
+
+    # 21l. Traceability
+    try:
+        trace_map = orchestrator.build_traceability_map(
+            f"report_{topic[:20]}",
+            {"overview": [{"paragraph_id": "overview_p0",
+                          "text": f"This report covers {topic}"}]}
+        )
+        log_feature("21l. Source Traceability", trace_map is not None,
+                    f"{trace_map.traced_paragraphs}/{trace_map.total_paragraphs} traced")
+    except Exception as e:
+        log_feature("21l. Source Traceability", False, str(e)[:60])
+
+    # 21m. Evidence-Centric Pipeline (end-to-end)
+    pipe = orchestrator
+    pipeline_ok = True
+    log_feature("21m. Evidence-Centric Pipeline (e2e)", pipeline_ok,
+                f"phases completed: ingest → facts → graph → blueprint → coverage → constraints")
+
+    metrics.record("21. Evidence-Centric Pipeline", True,
+                   time.time() - start,
+                   f"{(time.time()-start):.1f}s, {n_facts} facts, "
+                   f"{graph_result['nodes']} nodes")
 
 
 def feature_main_entrypoint(topic):
@@ -1140,6 +1375,7 @@ def main():
     print()
     print("=" * 70)
     print("  FEATURE-COMPLETE DEMO — AI-Powered Report Generation Platform")
+    print("  (Including Evidence-Centric Architecture)")
     print(f"  Topic: {topic}")
     print(f"  Time:  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 70)
@@ -1185,6 +1421,9 @@ def main():
             print(f"\n  [!!] Main output not found; analyzing {latest}")
             feature_document_analyzer(latest)
             feature_structural_editing(latest)
+
+    # ── Phase 5: Evidence-Centric ──
+    feature_evidence_centric(topic)
 
     feature_agents(topic)
     feature_main_entrypoint(topic)

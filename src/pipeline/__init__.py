@@ -11,7 +11,7 @@ from .generation.template import TemplatePipeline
 from .generator import ReportGeneratorPipeline
 from .export.pdf import PDFExportPipeline
 from .export.factory import ExportFactory
-from .coordinated import CoordinatedPipeline, PipelineContext
+from .coordinated import CoordinatedPipeline, PipelineContext, PHASE_ORDER
 
 __all__ = [
     "BasePipeline",
@@ -25,4 +25,5 @@ __all__ = [
     "ExportFactory",
     "CoordinatedPipeline",
     "PipelineContext",
+    "PHASE_ORDER",
 ]
