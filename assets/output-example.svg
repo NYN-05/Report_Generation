@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+  <defs>
+    <linearGradient id="bg2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f8fafc"/>
+      <stop offset="100%" style="stop-color:#f1f5f9"/>
+    </linearGradient>
+    <linearGradient id="header" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#1e293b"/>
+      <stop offset="100%" style="stop-color:#334155"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Page background -->
+  <rect x="50" y="20" width="700" height="560" rx="8" fill="url(#bg2)" stroke="#e2e8f0" stroke-width="1"/>
+
+  <!-- Page header -->
+  <rect x="50" y="20" width="700" height="60" rx="8" fill="url(#header)"/>
+  <rect x="50" y="60" width="700" height="20" fill="#1e293b"/>
+
+  <!-- Title -->
+  <text x="400" y="55" text-anchor="middle" font-family="Georgia, serif" font-size="18" font-weight="bold" fill="#f8fafc">Deep Learning Approaches for Medical Image Analysis</text>
+
+  <!-- Abstract section -->
+  <rect x="80" y="95" width="640" height="90" rx="4" fill="white" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="95" y="115" font-family="Georgia, serif" font-size="13" font-weight="bold" fill="#1e293b">Abstract</text>
+  <text x="95" y="135" font-family="Georgia, serif" font-size="11" fill="#475569">This report presents a comprehensive analysis of deep learning architectures applied to</text>
+  <text x="95" y="152" font-family="Georgia, serif" font-size="11" fill="#475569">medical image analysis tasks. We evaluate Convolutional Neural Networks (CNN), U-Net</text>
+  <text x="95" y="169" font-family="Georgia, serif" font-size="11" fill="#475569">architectures, and Vision Transformers (ViT) across segmentation, classification, and</text>
+  <text x="95" y="186" font-family="Georgia, serif" font-size="11" fill="#475569">detection tasks using publicly available medical imaging datasets.</text>
+
+  <!-- Citation badge -->
+  <rect x="630" y="98" width="80" height="20" rx="10" fill="#dcfce7"/>
+  <text x="670" y="112" text-anchor="middle" font-family="monospace" font-size="9" fill="#166534">42 citations</text>
+
+  <!-- Section 1 -->
+  <rect x="80" y="200" width="640" height="140" rx="4" fill="white" stroke="#e2e8f0" stroke-width="1"/>
+
+  <rect x="80" y="200" width="640" height="28" rx="4" fill="#f1f5f9"/>
+  <text x="95" y="218" font-family="Georgia, serif" font-size="12" font-weight="bold" fill="#1e293b">1. Introduction</text>
+
+  <text x="95" y="245" font-family="Georgia, serif" font-size="11" fill="#475569">Medical image analysis has been transformed by deep learning techniques over the past</text>
+  <text x="95" y="262" font-family="Georgia, serif" font-size="11" fill="#475569">decade [1, 2, 3]. Convolutional Neural Networks have demonstrated state-of-the-art</text>
+  <text x="95" y="279" font-family="Georgia, serif" font-size="11" fill="#475569">performance in tasks ranging from tumor segmentation to disease classification [4, 5].</text>
+  <text x="95" y="296" font-family="Georgia, serif" font-size="11" fill="#475569">Recent advances in Vision Transformers have further pushed the boundaries of what is</text>
+  <text x="95" y="313" font-family="Georgia, serif" font-size="11" fill="#475569">achievable in automated diagnostic systems [6]. This report systematically reviews</text>
+  <text x="95" y="330" font-family="Georgia, serif" font-size="11" fill="#475569">the major architectural paradigms and their empirical performance.</text>
+
+  <!-- Fact markers -->
+  <circle cx="82" cy="298" r="3" fill="#34d399"/>
+  <circle cx="82" cy="315" r="3" fill="#34d399"/>
+  <circle cx="82" cy="332" r="3" fill="#34d399"/>
+
+  <!-- Section 2 -->
+  <rect x="80" y="355" width="640" height="110" rx="4" fill="white" stroke="#e2e8f0" stroke-width="1"/>
+
+  <rect x="80" y="355" width="640" height="28" rx="4" fill="#f1f5f9"/>
+  <text x="95" y="373" font-family="Georgia, serif" font-size="12" font-weight="bold" fill="#1e293b">2. Methodology</text>
+
+  <text x="95" y="400" font-family="Georgia, serif" font-size="11" fill="#475569">We employed a systematic review methodology following PRISMA guidelines [7].</text>
+  <text x="95" y="417" font-family="Georgia, serif" font-size="11" fill="#475569">Database searches were conducted across PubMed, IEEE Xplore, and arXiv,</text>
+  <text x="95" y="434" font-family="Georgia, serif" font-size="11" fill="#475569">yielding 1,247 initial records. After deduplication and screening, 98 studies</text>
+  <text x="95" y="451" font-family="Georgia, serif" font-size="11" fill="#475569">were included in the final analysis.</text>
+
+  <!-- Evidence coverage indicator -->
+  <rect x="630" y="358" width="80" height="20" rx="10" fill="#dbeafe"/>
+  <text x="670" y="372" text-anchor="middle" font-family="monospace" font-size="9" fill="#1e40af">92% coverage</text>
+
+  <!-- Page footer -->
+  <rect x="50" y="570" width="700" height="10" fill="#e2e8f0" rx="0"/>
+  <text x="400" y="590" text-anchor="middle" font-family="monospace" font-size="9" fill="#94a3b8">Evidence-Constrained Generation • Fact-Based Reporting • Page 1 of 42</text>
+</svg>
