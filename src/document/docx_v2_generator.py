@@ -1,10 +1,3 @@
-"""DOCXV2Generator — block-aware DOCX document generation.
-
-Renders ContentBlock types to proper DOCX elements using centralized
-StyleManager for all formatting. No hardcoded font sizes, colors,
-or alignment values.
-"""
-
 import os
 import re
 from typing import Dict, Any, Optional, List
@@ -18,20 +11,14 @@ from docx.shared import RGBColor
 from src.document.styles import StyleManager, DocumentStyleValidator
 
 logger = get_logger(__name__)
-
-# Control characters to strip from LLM output (except common whitespace)
 _CONTROL_CHARS = re.compile(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]')
-_MAX_TEXT_LENGTH = 50000  # Max characters per text run
+_MAX_TEXT_LENGTH = 50000
 
 
 def sanitize_text(text: str, max_length: int = _MAX_TEXT_LENGTH) -> str:
-    """Sanitize LLM-generated text for safe DOCX insertion.
-    
-    Strips control characters, enforces max length, and normalizes whitespace.
-    """
     if not text:
         return ""
-    text = _CONTROL_CHARS.sub('', text)
+    text = _CONTROL_CHARS.sub("", text)
     text = text[:max_length]
     return text
 
@@ -39,6 +26,8 @@ try:
     from docx import Document
     from docx.shared import Pt, Inches
     from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
     HAS_DOCX = True
 except ImportError:
     HAS_DOCX = False
@@ -53,17 +42,21 @@ class DOCXV2Generator:
     def generate(
         self,
         title: str,
-        author: str,
-        sections: List[SectionContent],
+        author: str = "",
+        subtitle: str = "",
+        metadata: Optional[Dict] = None,
+        sections: Optional[List[SectionContent]] = None,
         output_path: str = "output.docx",
         validate: bool = True,
     ) -> str:
         self._doc = Document()
         self._styles.setup_document(self._doc)
-        self._add_cover_page(title, author)
-        self._add_table_of_contents(sections)
-        for section in sections:
+        meta = metadata or {}
+        self._add_cover_page(title, author, subtitle, meta)
+        self._add_table_of_contents(sections or [])
+        for section in sections or []:
             self._render_section(section)
+        self._add_evidence_appendix(sections or [])
         if validate and HAS_DOCX:
             validator = DocumentStyleValidator()
             passed, issues = validator.validate(self._doc)
@@ -74,31 +67,70 @@ class DOCXV2Generator:
         os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
         self._doc.save(output_path)
         size_kb = os.path.getsize(output_path) / 1024 if os.path.exists(output_path) else 0
-        logger.info(f"DOCX saved: {output_path} ({size_kb:.1f} KB, {len(sections)} sections)")
+        logger.info(f"DOCX saved: {output_path} ({size_kb:.1f} KB, {len(sections or [])} sections)")
         return output_path
 
-    def _add_cover_page(self, title: str, author: str):
-        s = self._styles.get_styles()
+    def _add_cover_page(self, title: str, author: str,
+                         subtitle: str = "",
+                         metadata: Optional[Dict] = None):
+        meta = metadata or {}
         for _ in range(6):
             self._doc.add_paragraph()
         title_p = self._doc.add_paragraph()
         title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        self._styles.write_run(title_p, title, s.cover_page.title_font)
+        self._styles.write_run(title_p, title, self._styles.get_styles().cover_page.title_font)
+        if subtitle:
+            self._doc.add_paragraph()
+            sub_p = self._doc.add_paragraph()
+            sub_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            self._styles.write_run(sub_p, subtitle, self._styles.get_styles().cover_page.author_font)
         if author:
             self._doc.add_paragraph()
             auth_p = self._doc.add_paragraph()
             auth_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            self._styles.write_run(auth_p, f"Author: {author}", s.cover_page.author_font)
+            self._styles.write_run(auth_p, f"Author: {author}", self._styles.get_styles().cover_page.author_font)
+        if meta.get("domain") or meta.get("report_type"):
+            self._doc.add_paragraph()
+            info_p = self._doc.add_paragraph()
+            info_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            parts = []
+            if meta.get("domain"):
+                parts.append(f"Domain: {meta['domain']}")
+            if meta.get("report_type"):
+                rtype = meta["report_type"].replace("_", " ").title()
+                parts.append(f"Type: {rtype}")
+            if parts:
+                self._styles.write_run(info_p, " | ".join(parts), self._styles.get_styles().cover_page.author_font)
+        from datetime import date
+        self._doc.add_paragraph()
+        date_p = self._doc.add_paragraph()
+        date_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        self._styles.write_run(date_p, date.today().strftime("%B %d, %Y"), self._styles.get_styles().cover_page.author_font)
         self._doc.add_page_break()
 
     def _add_table_of_contents(self, sections: List[SectionContent]):
-        self._doc.add_heading("Table of Contents", level=1)
+        toc_heading = self._doc.add_heading("Table of Contents", level=1)
         for i, section in enumerate(sections, 1):
             p = self._doc.add_paragraph(f"{i}. {section.heading}")
             pf = p.paragraph_format
             pf.space_before = Pt(4)
             pf.space_after = Pt(2)
         self._doc.add_page_break()
+
+    def _add_evidence_appendix(self, sections: List[SectionContent]):
+        appendix_heading = self._doc.add_heading("Appendix: Evidence Traceability", level=1)
+        for section in sections:
+            self._doc.add_heading(section.heading, level=2)
+            for block in section.blocks:
+                if isinstance(block, ParagraphBlock) and block.text:
+                    p = self._doc.add_paragraph()
+                    run = p.add_run(block.text[:200] + ("..." if len(block.text) > 200 else ""))
+                    run.font.size = Pt(10)
+                    run.italic = True
+                    if block.evidence_source:
+                        src_run = p.add_run(f"  [{block.evidence_source}]")
+                        src_run.font.size = Pt(9)
+                        src_run.font.color.rgb = RGBColor(128, 128, 128)
 
     def _render_section(self, section: SectionContent):
         for block in section.blocks:
@@ -192,7 +224,6 @@ class DOCXV2Generator:
                         if i == 0:
                             run.font.bold = True
                             run.font.size = Pt(s.table.header_font.size)
-        self._doc.add_paragraph()
 
     def _render_figure(self, block: FigureBlock):
         s = self._styles.get_styles()

@@ -270,7 +270,8 @@ class ExternalAcquisitionPipeline:
         return needs_acquisition, low_coverage_sections
 
     def acquire(self, topic: str, blueprint: List[Dict],
-                max_results_per_source: int = 3) -> int:
+                max_results_per_source: int = 3,
+                use_tavily: bool = False) -> int:
         needs_acq, low_coverage = self.check_coverage(blueprint)
         if not needs_acq:
             logger.info(f"Coverage sufficient ({self._threshold}) — skipping external acquisition")
@@ -283,7 +284,7 @@ class ExternalAcquisitionPipeline:
 
         all_external: List[ExternalFact] = []
         for query in queries:
-            raw_results = search_web(query, max_results_per_source)
+            raw_results = search_web(query, max_results_per_source, use_tavily=use_tavily)
             for r in raw_results:
                 ext = self._raw_to_external(r, query)
                 if ext and ext.source_url not in user_fact_sources:

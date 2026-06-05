@@ -14,6 +14,7 @@ from src.facts.store import FactStore, FactStoreConfig
 from src.facts.models import SourceReference
 from src.generator.fact_driven_generator import FactDrivenGenerator
 from src.generator.blueprint_builder import BlueprintBuilder
+from src.generator.report_planner import ReportPlanner
 from src.validation.hallucination_detector import HallucinationDetector
 from src.quality.unified_score import compute_pre_generation_score, compute_post_generation_score
 from src.providers.factory import get_default_provider
@@ -23,7 +24,7 @@ logger = get_logger("main")
 
 
 def run(topic: str, knowledge_dir: str = "knowledge", output_path: str = "output/output.docx",
-        web_search: bool = False, min_coverage: float = 0.3):
+        web_search: bool = False, tavily: bool = False, min_coverage: float = 0.3):
     out_path = Path(output_path)
     if out_path.suffix.lower() == ".pdf":
         docx_path = str(out_path.with_suffix(".docx"))
@@ -80,24 +81,29 @@ def run(topic: str, knowledge_dir: str = "knowledge", output_path: str = "output
         total_facts += len(validated)
     print(f"  [OK] {total_facts} facts extracted ({fact_store.get_statistics()['total']} in store)")
 
-    print(f"  [3/8] Building evidence blueprint...")
+    print(f"  [3/8] Understanding topic and planning report structure...")
     generator = FactDrivenGenerator(fact_store, provider)
-    builder = BlueprintBuilder(fact_store)
-    blueprint = builder.build(topic, min_facts=3)
+    planner = ReportPlanner(fact_store, provider)
+    report_plan = planner.plan(topic, min_facts=3)
+    blueprint = report_plan.sections
     threshold_sections = [s for s in blueprint if s.meets_threshold]
     if not threshold_sections:
         print(f"  [FAIL] No evidence-based sections meet minimum threshold")
         print(f"\n  The system found no facts meeting minimum evidence requirements.")
         print(f"  Upload documents with more content, or reduce min_facts.")
         return False
-    if len(threshold_sections) < len(blueprint):
-        pruned = [s for s in blueprint if not s.meets_threshold]
-        for s in pruned:
-            print(f"    [PRUNED] {s.heading} ({s.pruning_reason})")
-    print(f"  [OK] {len(threshold_sections)}/{len(blueprint)} sections meet threshold")
+    pruned = [s for s in blueprint if not s.meets_threshold]
+    for s in pruned:
+        print(f"    [PRUNED] {s.heading} ({s.pruning_reason})")
+    print(f"  [OK] {len(threshold_sections)}/{len(blueprint)} sections "
+          f"({report_plan.utilized_facts}/{fact_store.get_statistics()['total']} facts utilized, "
+          f"{report_plan.report_type})")
 
     if web_search:
-        print(f"  [3b] Checking evidence coverage...")
+        backends = "DuckDuckGo"
+        if tavily:
+            backends += " + Tavily"
+        print(f"  [3b] Checking evidence coverage (backends: {backends})...")
         acquisition = ExternalAcquisitionPipeline(
             fact_store, provider,
             coverage_threshold=min_coverage,
@@ -107,7 +113,7 @@ def run(topic: str, knowledge_dir: str = "knowledge", output_path: str = "output
         if needs_acq:
             print(f"  [INFO] Coverage below threshold for: {', '.join(low_sections)}")
             print(f"  [INFO] Acquiring external evidence...")
-            added = acquisition.acquire(topic, blueprint, max_results_per_source=3)
+            added = acquisition.acquire(topic, blueprint, max_results_per_source=3, use_tavily=tavily)
             if added:
                 print(f"  [OK] {added} verified external facts added to store")
                 print(f"  [INFO] Rebuilding blueprint with enriched evidence...")
@@ -127,7 +133,8 @@ def run(topic: str, knowledge_dir: str = "knowledge", output_path: str = "output
             continue
         pre_score = compute_pre_generation_score(section.facts)
         print(f"    Generating {section.heading} ({len(section.facts)} facts, score={pre_score:.0%})...")
-        gen_section = generator.generate_section(section.section_type, section.heading, section.facts, topic)
+        dominant_type = section.facts[0].fact_type.value if section.facts else "general"
+        gen_section = generator.generate_section(dominant_type, section.heading, section.facts, topic)
         section_contents.append(gen_section)
         post_score = compute_post_generation_score(gen_section.to_text(), section.facts)
         section_scores.append({"heading": section.heading, **post_score})
@@ -159,9 +166,12 @@ def run(topic: str, knowledge_dir: str = "knowledge", output_path: str = "output
     try:
         from src.document.docx_v2_generator import DOCXV2Generator
         docx_gen = DOCXV2Generator()
+        subtitle = f"A {report_plan.report_type.replace('_', ' ').title()} Report"
         output = docx_gen.generate(
             title=topic,
             author="",
+            subtitle=subtitle,
+            metadata={"domain": report_plan.domain, "report_type": report_plan.report_type},
             sections=section_contents,
             output_path=docx_path,
         )
@@ -204,7 +214,8 @@ def main():
     parser.add_argument("--knowledge-dir", default="knowledge", help="Directory with reference documents")
     parser.add_argument("--output", default="output/output.docx", help="Output DOCX path")
     parser.add_argument("--min-coverage", type=float, default=0.3, help="Minimum coverage threshold (0-1)")
-    parser.add_argument("--web-search", action="store_true", help="Enable web search (requires TAVILY_API_KEY)")
+    parser.add_argument("--web-search", action="store_true", help="Enable web search (DuckDuckGo, always free)")
+    parser.add_argument("--tavily", action="store_true", help="Use Tavily API (costs credits) alongside DuckDuckGo")
     args = parser.parse_args()
 
     if not args.topic:
@@ -214,7 +225,7 @@ def main():
 
     run(topic=args.topic, knowledge_dir=args.knowledge_dir,
         output_path=args.output, min_coverage=args.min_coverage,
-        web_search=args.web_search)
+        web_search=args.web_search, tavily=args.tavily)
 
 
 if __name__ == "__main__":

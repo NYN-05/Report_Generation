@@ -360,22 +360,29 @@ class DuckDuckGoSearch:
             return []
 
 
-def search_web(topic: str, max_results_per_source: int = 5) -> List[Dict]:
-    """Multi-backend web search — tries all available backends.
+def search_web(topic: str, max_results_per_source: int = 5,
+               use_tavily: bool = False) -> List[Dict]:
+    """Multi-backend web search.
+
+    DuckDuckGo is always used (free, no API key required).
+    Tavily is only used when explicitly opted in via use_tavily=True
+    (costs API credits).
 
     Returns merged, deduplicated chunks ready for fact extraction.
-    Backends: Tavily (if API key set), DuckDuckGo (always available).
     """
     all_chunks: List[Dict] = []
 
-    tavily = WebSearchRetriever(max_results_per_query=max_results_per_source)
-    if tavily.is_ready():
-        try:
-            tavily_chunks = tavily.retrieve(topic, max_results_per_source)
-            all_chunks.extend(tavily_chunks)
-            logger.info(f"Tavily returned {len(tavily_chunks)} results")
-        except Exception as e:
-            logger.warning(f"Tavily search failed: {e}")
+    if use_tavily:
+        tavily = WebSearchRetriever(max_results_per_query=max_results_per_source)
+        if tavily.is_ready():
+            try:
+                tavily_chunks = tavily.retrieve(topic, max_results_per_source)
+                all_chunks.extend(tavily_chunks)
+                logger.info(f"Tavily returned {len(tavily_chunks)} results")
+            except Exception as e:
+                logger.warning(f"Tavily search failed: {e}")
+    else:
+        logger.info("Tavily disabled (use --tavily to enable)")
 
     ddg = DuckDuckGoSearch(max_results=max_results_per_source)
     ddg_results = ddg.search(topic, max_results_per_source)
