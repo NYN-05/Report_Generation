@@ -249,19 +249,23 @@ class ExternalAcquisitionPipeline:
         self._scorer = EvidenceConfidenceScorer()
         self._acquisition_log: List[Dict] = []
 
-    def check_coverage(self, blueprint: List[Dict]) -> Tuple[bool, List[str]]:
+    def check_coverage(self, blueprint: List) -> Tuple[bool, List[str]]:
         if not blueprint:
             return True, []
         low_coverage_sections = []
         for section in blueprint:
-            facts = section.get("facts", [])
-            req_types = section.get("required_types", [])
-            if not req_types:
-                continue
-            matched_types = set(f.fact_type.value if hasattr(f, 'fact_type') else "" for f in facts)
-            coverage = len(matched_types & set(req_types)) / len(req_types)
-            if coverage < self._threshold:
-                low_coverage_sections.append(section["section_type"])
+            if hasattr(section, "meets_threshold"):
+                if not section.meets_threshold:
+                    low_coverage_sections.append(section.section_type)
+            else:
+                facts = section.get("facts", [])
+                req_types = section.get("required_types", [])
+                if not req_types:
+                    continue
+                matched_types = set(f.fact_type.value if hasattr(f, 'fact_type') else "" for f in facts)
+                coverage = len(matched_types & set(req_types)) / len(req_types)
+                if coverage < self._threshold:
+                    low_coverage_sections.append(section["section_type"])
         needs_acquisition = len(low_coverage_sections) > 0
         return needs_acquisition, low_coverage_sections
 

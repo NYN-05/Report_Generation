@@ -1,59 +1,17 @@
 from typing import Dict, List, Optional, Tuple
-from dataclasses import dataclass, field
 from src.core.logger import get_logger
-from src.facts.models import Fact, FactType
+from src.facts.models import Fact
 from src.facts.store import FactStore
 from src.generator.content_blocks import SectionContent, ParagraphBlock, SourceRequiredBlock, HeadingBlock
+from src.quality.unified_score import compute_pre_generation_score
 
 logger = get_logger(__name__)
-
-EVIDENCE_SECTION_MAP: Dict[str, Dict] = {
-    "introduction": {"required_types": [FactType.OBJECTIVE], "heading": "Introduction", "priority": 1},
-    "methodology": {"required_types": [FactType.ALGORITHM, FactType.ARCHITECTURE], "heading": "Methodology", "priority": 2},
-    "implementation": {"required_types": [FactType.TECHNOLOGY], "heading": "Implementation", "priority": 3},
-    "experimental_setup": {"required_types": [FactType.DATASET, FactType.METRIC], "heading": "Experimental Setup", "priority": 4},
-    "results": {"required_types": [FactType.RESULT, FactType.METRIC], "heading": "Results", "priority": 5},
-    "discussion": {"required_types": [FactType.RESULT], "heading": "Discussion", "priority": 6},
-    "related_work": {"required_types": [FactType.CITATION], "heading": "Related Work", "priority": 7},
-    "conclusion": {"required_types": [FactType.OBJECTIVE, FactType.RESULT], "heading": "Conclusion", "priority": 8},
-}
-
-
-@dataclass
-class SectionConfidence:
-    section_type: str
-    heading: str
-    coverage: float
-    confidence: float
-    supporting_facts: int
-    source_count: int
-    generation_mode: str
-    paragraphs: int = 0
-    traced_paragraphs: int = 0
 
 
 class FactDrivenGenerator:
     def __init__(self, fact_store: FactStore, provider=None):
         self._fact_store = fact_store
         self._provider = provider
-
-    def build_blueprint(self, title: str) -> List[Dict]:
-        all_facts = self._fact_store.get_all_facts()
-        sections = []
-        for stype, config in EVIDENCE_SECTION_MAP.items():
-            matching = [f for f in all_facts if f.fact_type in config["required_types"]]
-            if not matching:
-                continue
-            sections.append({
-                "section_type": stype,
-                "heading": config["heading"],
-                "facts": matching,
-                "priority": config["priority"],
-                "required_types": [ft.value for ft in config["required_types"]],
-            })
-        sections.sort(key=lambda s: s["priority"])
-        logger.info(f"Blueprint: {len(sections)} sections from evidence for '{title}'")
-        return sections
 
     def generate_section(self, section_type: str, heading: str, facts: List[Fact], topic: str) -> SectionContent:
         section = SectionContent(heading=heading)
@@ -66,9 +24,9 @@ class FactDrivenGenerator:
             ))
             return section
 
-        generation_mode = self._compute_mode(facts)
+        pre_score = compute_pre_generation_score(facts)
 
-        if generation_mode == "not_possible":
+        if pre_score < 0.1:
             section.add_block(SourceRequiredBlock(
                 query=section_type,
                 message=f"Insufficient source material available for this section."
@@ -80,7 +38,7 @@ class FactDrivenGenerator:
                 section.add_block(ParagraphBlock(text=f.value, word_count=len(f.value.split()), evidence_source=f.source.file_name))
             return section
 
-        prompt = self._build_fact_prompt(section_type, heading, facts, generation_mode, topic)
+        prompt = self._build_fact_prompt(section_type, heading, facts, pre_score, topic)
         raw = self._call_llm(prompt)
         if not raw:
             for f in facts:
@@ -90,7 +48,7 @@ class FactDrivenGenerator:
         self._parse_into_section(section, raw, facts, section_type)
         return section
 
-    def _build_fact_prompt(self, section_type: str, heading: str, facts: List[Fact], mode: str, topic: str) -> str:
+    def _build_fact_prompt(self, section_type: str, heading: str, facts: List[Fact], score: float, topic: str) -> str:
         n_facts = len(facts)
         if n_facts <= 1:
             max_paras = 1
@@ -176,50 +134,3 @@ class FactDrivenGenerator:
             elif any(c.lower() in text_lower for c in f.concepts):
                 matched.append(f)
         return matched[:3]
-
-    def _compute_mode(self, facts: List[Fact]) -> str:
-        if not facts:
-            return "not_possible"
-        avg_conf = sum(f.confidence for f in facts) / len(facts)
-        type_diversity = min(len(set(f.fact_type for f in facts)) / 3.0, 1.0)
-        score = avg_conf * 0.6 + type_diversity * 0.4
-        if score >= 0.8:
-            return "normal"
-        elif score >= 0.5:
-            return "cautious"
-        elif score >= 0.1:
-            return "insufficient_evidence"
-        return "not_possible"
-
-    def compute_confidence(self, section_type: str, facts: List[Fact], paragraphs: List[ParagraphBlock]) -> SectionConfidence:
-        if not facts or not paragraphs:
-            return SectionConfidence(
-                section_type=section_type,
-                heading=section_type.replace("_", " ").title(),
-                coverage=0.0, confidence=0.0,
-                supporting_facts=0, source_count=0,
-                generation_mode=self._compute_mode(facts),
-            )
-        traced = 0
-        fact_ids_used = set()
-        sources_used = set()
-        for p in paragraphs:
-            matched = self._find_facts_in_text(p.text, facts)
-            if matched:
-                traced += 1
-                for m in matched:
-                    fact_ids_used.add(m.fact_id)
-                    sources_used.add(m.source.file_name)
-        coverage = traced / len(paragraphs) if paragraphs else 0.0
-        avg_conf = sum(f.confidence for f in facts) / len(facts) if facts else 0.0
-        return SectionConfidence(
-            section_type=section_type,
-            heading=section_type.replace("_", " ").title(),
-            coverage=round(coverage, 3),
-            confidence=round(avg_conf, 3),
-            supporting_facts=len(fact_ids_used),
-            source_count=len(sources_used),
-            generation_mode=self._compute_mode(facts),
-            paragraphs=len(paragraphs),
-            traced_paragraphs=traced,
-        )
