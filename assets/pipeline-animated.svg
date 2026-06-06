@@ -1,107 +1,202 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="120" viewBox="0 0 800 120">
+<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 1620 300">
   <defs>
-    <linearGradient id="pbg" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#0f172a"/>
-      <stop offset="100%" style="stop-color:#1e293b"/>
+    <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#0b0f19"/>
+      <stop offset="50%" style="stop-color:#111827"/>
+      <stop offset="100%" style="stop-color:#0b0f19"/>
     </linearGradient>
-    <linearGradient id="pulseG" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#38bdf8;stop-opacity:1"/>
-      <stop offset="100%" style="stop-color:#38bdf8;stop-opacity:0"/>
-    </linearGradient>
+
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569" />
+    </marker>
+    <marker id="arrow-loop" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#fb923c" />
+    </marker>
+
+    <style>
+      .card {
+        transform-origin: center;
+        transition: transform 0.3s ease, filter 0.3s ease;
+        cursor: pointer;
+      }
+      .card:hover {
+        transform: scale(1.05);
+        filter: drop-shadow(0 0 10px var(--hover-color, #38bdf8));
+      }
+      .flow-line {
+        stroke-dasharray: 6, 6;
+        animation: flow 20s linear infinite;
+      }
+      .flow-loop {
+        stroke-dasharray: 4, 4;
+        animation: flow-reverse 15s linear infinite;
+      }
+      @keyframes flow {
+        to { stroke-dashoffset: -500; }
+      }
+      @keyframes flow-reverse {
+        to { stroke-dashoffset: 500; }
+      }
+      @keyframes pulse {
+        0%, 100% { opacity: 0.3; transform: scale(0.8); }
+        50% { opacity: 1; transform: scale(1.2); }
+      }
+      @keyframes glow {
+        0%, 100% { filter: drop-shadow(0 0 2px var(--hover-color)); }
+        50% { filter: drop-shadow(0 0 12px var(--hover-color)); }
+      }
+      .fade-in {
+        animation: fadeIn 0.8s ease-out both;
+      }
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      text {
+        font-family: 'Segoe UI', 'SF Mono', monospace;
+        font-size: 11px;
+        font-weight: 600;
+        pointer-events: none;
+      }
+      .label-small {
+        font-size: 9px;
+        font-weight: 400;
+        fill: #64748b;
+      }
+    </style>
   </defs>
 
-  <rect width="800" height="120" fill="url(#pbg)" rx="10"/>
+  <!-- Background -->
+  <rect width="100%" height="100%" fill="url(#bg-grad)" rx="12" stroke="#1e293b" stroke-width="2"/>
 
-  <!-- Arrow connector line (static) -->
-  <line x1="50" y1="60" x2="780" y2="60" stroke="#334155" stroke-width="2"/>
+  <!-- Static flow lines -->
+  <g fill="none" stroke-width="2" class="fade-in" style="animation-delay: 0.2s;">
+    <!-- Main horizontal arrows -->
+    <path d="M 120 150 L 144 150" stroke="#475569" marker-end="url(#arrow)" />
+    <path d="M 260 150 L 284 150" stroke="#475569" marker-end="url(#arrow)" />
+    <path d="M 410 150 L 434 150" stroke="#475569" marker-end="url(#arrow)" />
+    <path d="M 530 150 L 554 150" stroke="#475569" marker-end="url(#arrow)" />
+    <path d="M 660 150 L 684 150" stroke="#475569" marker-end="url(#arrow)" />
+    <path d="M 830 150 L 854 150" stroke="#475569" marker-end="url(#arrow)" />
+    <path d="M 980 150 L 1004 150" stroke="#475569" marker-end="url(#arrow)" />
 
-  <!-- Stage 1: Input -->
-  <g>
-    <rect x="10" y="35" width="70" height="40" rx="6" fill="#1e293b" stroke="#38bdf8" stroke-width="2"/>
-    <text x="45" y="60" text-anchor="middle" font-family="monospace" font-size="10" fill="#38bdf8">Topic</text>
+    <!-- Coverage Audit to Web Search (up) -->
+    <path d="M 790 128 C 790 90, 710 70, 660 70" stroke="#fb923c" class="flow-loop" marker-end="url(#arrow-loop)" />
+    <text x="760" y="88" text-anchor="end" fill="#fb923c" font-size="9" font-weight="400">low coverage</text>
+
+    <!-- Web Search back to Fact Extraction (down) -->
+    <path d="M 570 70 C 500 70, 410 90, 410 128" stroke="#fb923c" class="flow-loop" marker-end="url(#arrow-loop)" />
+    <text x="490" y="62" text-anchor="middle" fill="#fb923c" font-size="9" font-weight="400">new facts</text>
+
+    <!-- Ollama Synthesis split to Hallucination Detect (down) and Quality Scoring (up) -->
+    <path d="M 1130 150 L 1144 150" stroke="#475569" marker-end="url(#arrow)" />
+    <path d="M 1150 150 C 1165 150, 1165 90, 1174 90" stroke="#475569" marker-end="url(#arrow)" />
+    <path d="M 1150 150 C 1165 150, 1165 210, 1174 210" stroke="#475569" marker-end="url(#arrow)" />
+
+    <!-- Quality Scoring and Hallucination Detect merge to DOCX Export -->
+    <path d="M 1300 90 C 1320 90, 1320 150, 1344 150" stroke="#475569" marker-end="url(#arrow)" />
+    <path d="M 1340 210 C 1355 210, 1355 150, 1344 150" stroke="#475569" marker-end="url(#arrow)" />
+
+    <!-- DOCX Export to Report -->
+    <path d="M 1470 150 L 1494 150" stroke="#475569" marker-end="url(#arrow)" />
   </g>
 
-  <!-- Animated pulse dot 1 -->
-  <circle cx="90" cy="60" r="3" fill="#38bdf8">
-    <animate attributeName="r" values="3;5;3" dur="1.5s" repeatCount="indefinite"/>
-    <animate attributeName="opacity" values="1;0.3;1" dur="1.5s" repeatCount="indefinite"/>
-  </circle>
+  <!-- Animated energy pulses along paths -->
+  <circle r="3" fill="#38bdf8"><animateMotion repeatCount="indefinite" dur="10s" path="M 120 150 L 260 150 L 410 150 L 530 150 L 660 150 L 830 150 L 980 150 L 1130 150" /></circle>
+  <circle r="3" fill="#818cf8"><animateMotion repeatCount="indefinite" dur="10s" begin="1.5s" path="M 120 150 L 260 150 L 410 150 L 530 150 L 660 150 L 830 150 L 980 150 L 1130 150" /></circle>
+  <circle r="3" fill="#c084fc"><animateMotion repeatCount="indefinite" dur="10s" begin="3s" path="M 120 150 L 260 150 L 410 150 L 530 150 L 660 150 L 830 150 L 980 150 L 1130 150" /></circle>
 
-  <!-- Stage 2: Plan -->
-  <g>
-    <rect x="100" y="35" width="70" height="40" rx="6" fill="#1e293b" stroke="#818cf8" stroke-width="2"/>
-    <text x="135" y="60" text-anchor="middle" font-family="monospace" font-size="10" fill="#818cf8">Plan</text>
+  <circle r="3" fill="#34d399"><animateMotion repeatCount="indefinite" dur="6s" path="M 1150 150 C 1165 150, 1165 90, 1174 90 L 1300 90 C 1320 90, 1320 150, 1344 150" /></circle>
+  <circle r="3" fill="#f87171"><animateMotion repeatCount="indefinite" dur="6s" path="M 1150 150 C 1165 150, 1165 210, 1174 210 L 1340 210 C 1355 210, 1355 150, 1344 150" /></circle>
+
+  <circle r="3" fill="#2dd4bf"><animateMotion repeatCount="indefinite" dur="4s" path="M 1344 150 L 1470 150 L 1494 150" /></circle>
+
+  <!-- Loop energy pulse -->
+  <circle r="3" fill="#fb923c"><animateMotion repeatCount="indefinite" dur="8s" path="M 790 128 C 790 90, 710 70, 660 70 L 570 70 C 500 70, 410 90, 410 128" /></circle>
+
+  <!-- Cards -->
+  <!-- 1. Documents -->
+  <g class="card fade-in" style="--hover-color: #38bdf8; animation-delay: 0.1s;">
+    <rect x="30" y="128" width="90" height="44" rx="6" fill="#0f172a" stroke="#38bdf8" stroke-width="2"/>
+    <text x="75" y="154" text-anchor="middle" fill="#38bdf8">Documents</text>
   </g>
 
-  <circle cx="180" cy="60" r="3" fill="#818cf8">
-    <animate attributeName="r" values="3;5;3" dur="1.5s" begin="0.2s" repeatCount="indefinite"/>
-    <animate attributeName="opacity" values="1;0.3;1" dur="1.5s" begin="0.2s" repeatCount="indefinite"/>
-  </circle>
-
-  <!-- Stage 3: Research -->
-  <g>
-    <rect x="190" y="35" width="80" height="40" rx="6" fill="#1e293b" stroke="#34d399" stroke-width="2"/>
-    <text x="230" y="60" text-anchor="middle" font-family="monospace" font-size="10" fill="#34d399">Research</text>
+  <!-- 2. Parse & Embed -->
+  <g class="card fade-in" style="--hover-color: #818cf8; animation-delay: 0.15s;">
+    <rect x="150" y="128" width="110" height="44" rx="6" fill="#0f172a" stroke="#818cf8" stroke-width="2"/>
+    <text x="205" y="154" text-anchor="middle" fill="#818cf8">Parse &amp; Embed</text>
   </g>
 
-  <circle cx="280" cy="60" r="3" fill="#34d399">
-    <animate attributeName="r" values="3;5;3" dur="1.5s" begin="0.4s" repeatCount="indefinite"/>
-    <animate attributeName="opacity" values="1;0.3;1" dur="1.5s" begin="0.4s" repeatCount="indefinite"/>
-  </circle>
-
-  <!-- Stage 4: KG -->
-  <g>
-    <rect x="290" y="30" width="90" height="50" rx="6" fill="#1e293b" stroke="#f59e0b" stroke-width="2"/>
-    <text x="335" y="52" text-anchor="middle" font-family="monospace" font-size="9" fill="#f59e0b">Knowledge</text>
-    <text x="335" y="66" text-anchor="middle" font-family="monospace" font-size="9" fill="#f59e0b">Graph</text>
+  <!-- 3. Fact Extraction -->
+  <g class="card fade-in" style="--hover-color: #a78bfa; animation-delay: 0.2s;">
+    <rect x="290" y="128" width="120" height="44" rx="6" fill="#0f172a" stroke="#a78bfa" stroke-width="2"/>
+    <text x="350" y="154" text-anchor="middle" fill="#a78bfa">Fact Extraction</text>
   </g>
 
-  <circle cx="390" cy="60" r="3" fill="#f59e0b">
-    <animate attributeName="r" values="3;5;3" dur="1.5s" begin="0.6s" repeatCount="indefinite"/>
-    <animate attributeName="opacity" values="1;0.3;1" dur="1.5s" begin="0.6s" repeatCount="indefinite"/>
-  </circle>
-
-  <!-- Stage 5: Fact Store (highlighted) -->
-  <g>
-    <rect x="400" y="28" width="85" height="54" rx="6" fill="#0f172a" stroke="#22c55e" stroke-width="2.5"/>
-    <rect x="400" y="28" width="85" height="54" rx="6" fill="#22c55e" opacity="0.08"/>
-    <text x="442" y="50" text-anchor="middle" font-family="monospace" font-size="9" font-weight="bold" fill="#22c55e">Fact</text>
-    <text x="442" y="64" text-anchor="middle" font-family="monospace" font-size="9" font-weight="bold" fill="#22c55e">Store</text>
+  <!-- 4. Fact Store -->
+  <g class="card fade-in" style="--hover-color: #22c55e; animation-delay: 0.25s;">
+    <rect x="440" y="128" width="90" height="44" rx="6" fill="#0f172a" stroke="#22c55e" stroke-width="2"/>
+    <rect x="440" y="128" width="90" height="44" rx="6" fill="#22c55e" opacity="0.08"/>
+    <text x="485" y="154" text-anchor="middle" fill="#22c55e">Fact Store</text>
   </g>
 
-  <circle cx="495" cy="60" r="3" fill="#22c55e">
-    <animate attributeName="r" values="3;6;3" dur="1.5s" begin="0.8s" repeatCount="indefinite"/>
-    <animate attributeName="opacity" values="1;0.3;1" dur="1.5s" begin="0.8s" repeatCount="indefinite"/>
-  </circle>
-
-  <!-- Stage 6: Generate -->
-  <g>
-    <rect x="505" y="35" width="80" height="40" rx="6" fill="#1e293b" stroke="#f472b6" stroke-width="2"/>
-    <text x="545" y="60" text-anchor="middle" font-family="monospace" font-size="10" fill="#f472b6">Generate</text>
+  <!-- 5. Knowledge Analysis -->
+  <g class="card fade-in" style="--hover-color: #e879f9; animation-delay: 0.3s;">
+    <rect x="560" y="128" width="100" height="44" rx="6" fill="#0f172a" stroke="#e879f9" stroke-width="2"/>
+    <text x="610" y="154" text-anchor="middle" fill="#e879f9">Knowledge Analysis</text>
   </g>
 
-  <circle cx="595" cy="60" r="3" fill="#f472b6">
-    <animate attributeName="r" values="3;5;3" dur="1.5s" begin="1s" repeatCount="indefinite"/>
-    <animate attributeName="opacity" values="1;0.3;1" dur="1.5s" begin="1s" repeatCount="indefinite"/>
-  </circle>
-
-  <!-- Stage 7: Validate -->
-  <g>
-    <rect x="605" y="35" width="75" height="40" rx="6" fill="#1e293b" stroke="#a78bfa" stroke-width="2"/>
-    <text x="642" y="60" text-anchor="middle" font-family="monospace" font-size="10" fill="#a78bfa">Validate</text>
+  <!-- 6. Coverage Audit -->
+  <g class="card fade-in" style="--hover-color: #f472b6; animation-delay: 0.35s;">
+    <rect x="690" y="128" width="140" height="44" rx="6" fill="#0f172a" stroke="#f472b6" stroke-width="2"/>
+    <text x="760" y="154" text-anchor="middle" fill="#f472b6">Coverage Audit</text>
   </g>
 
-  <circle cx="690" cy="60" r="3" fill="#a78bfa">
-    <animate attributeName="r" values="3;5;3" dur="1.5s" begin="1.2s" repeatCount="indefinite"/>
-    <animate attributeName="opacity" values="1;0.3;1" dur="1.5s" begin="1.2s" repeatCount="indefinite"/>
-  </circle>
-
-  <!-- Stage 8: Export -->
-  <g>
-    <rect x="700" y="35" width="75" height="40" rx="6" fill="#1e293b" stroke="#38bdf8" stroke-width="2"/>
-    <text x="737" y="60" text-anchor="middle" font-family="monospace" font-size="10" fill="#38bdf8">Export</text>
+  <!-- 7. Web Search (optional, up top) -->
+  <g class="card fade-in" style="--hover-color: #fb923c; animation-delay: 0.4s;">
+    <rect x="570" y="48" width="100" height="44" rx="6" fill="#0f172a" stroke="#fb923c" stroke-width="2" stroke-dasharray="4,2"/>
+    <rect x="570" y="48" width="100" height="44" rx="6" fill="#fb923c" opacity="0.06"/>
+    <text x="620" y="73" text-anchor="middle" fill="#fb923c">Web Search</text>
+    <text x="620" y="85" text-anchor="middle" class="label-small">optional</text>
   </g>
 
-  <!-- Footer label -->
-  <text x="400" y="108" text-anchor="middle" font-family="monospace" font-size="9" fill="#475569">Evidence-Constrained Pipeline • 8 Phases • Real-Time</text>
+  <!-- 8. Blueprint Plan -->
+  <g class="card fade-in" style="--hover-color: #fb7185; animation-delay: 0.45s;">
+    <rect x="860" y="128" width="120" height="44" rx="6" fill="#0f172a" stroke="#fb7185" stroke-width="2"/>
+    <text x="920" y="154" text-anchor="middle" fill="#fb7185">Blueprint Plan</text>
+  </g>
+
+  <!-- 9. Ollama Synthesis -->
+  <g class="card fade-in" style="--hover-color: #f43f5e; animation-delay: 0.5s;">
+    <rect x="1000" y="128" width="130" height="44" rx="6" fill="#0f172a" stroke="#f43f5e" stroke-width="2"/>
+    <text x="1065" y="154" text-anchor="middle" fill="#f43f5e">Ollama Synthesis</text>
+  </g>
+
+  <!-- 10. Quality Scoring (split up) -->
+  <g class="card fade-in" style="--hover-color: #34d399; animation-delay: 0.55s;">
+    <rect x="1180" y="68" width="120" height="44" rx="6" fill="#0f172a" stroke="#34d399" stroke-width="2"/>
+    <text x="1240" y="94" text-anchor="middle" fill="#34d399">Quality Scoring</text>
+  </g>
+
+  <!-- 11. Hallucination Detect (split down) -->
+  <g class="card fade-in" style="--hover-color: #f87171; animation-delay: 0.6s;">
+    <rect x="1180" y="188" width="160" height="44" rx="6" fill="#0f172a" stroke="#f87171" stroke-width="2"/>
+    <text x="1260" y="214" text-anchor="middle" fill="#f87171">Hallucination Detect</text>
+  </g>
+
+  <!-- 12. DOCX Export -->
+  <g class="card fade-in" style="--hover-color: #2dd4bf; animation-delay: 0.65s;">
+    <rect x="1350" y="128" width="120" height="44" rx="6" fill="#0f172a" stroke="#2dd4bf" stroke-width="2"/>
+    <text x="1410" y="154" text-anchor="middle" fill="#2dd4bf">DOCX Export</text>
+  </g>
+
+  <!-- 13. Report (output) -->
+  <g class="card fade-in" style="--hover-color: #38bdf8; animation-delay: 0.7s;">
+    <rect x="1500" y="128" width="80" height="44" rx="6" fill="#0f172a" stroke="#38bdf8" stroke-width="2"/>
+    <rect x="1500" y="128" width="80" height="44" rx="6" fill="#38bdf8" opacity="0.08"/>
+    <text x="1540" y="154" text-anchor="middle" fill="#38bdf8">Report</text>
+  </g>
+
+  <!-- Title bar -->
+  <text x="810" y="262" text-anchor="middle" fill="#475569" font-size="10" font-weight="400">9-phase evidence-constrained pipeline &middot; Hover cards for details</text>
 </svg>
